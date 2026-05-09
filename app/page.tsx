@@ -1,5 +1,5 @@
-import { WorkOrderCreateScreen } from "@/components/work-orders/work-order-create-screen";
+import { redirect } from "next/navigation";
 
 export default function Page() {
-  return <WorkOrderCreateScreen />;
+  redirect("/dashboard");
 }

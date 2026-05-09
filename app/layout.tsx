@@ -3,8 +3,9 @@ import type { ReactNode } from "react";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "НеоЛифт ERP — заказ-наряд",
-  description: "Внутренний PWA экран создания заказ-наряда механика НеоЛифт.",
+  title: "НеоЛифт ERP — secure operations shell",
+  description: "Production-ready authentication, RBAC and industrial ERP/PWA shell for НеоЛифт.",
+  manifest: "/manifest.webmanifest",
 };
 
 export const viewport: Viewport = {
