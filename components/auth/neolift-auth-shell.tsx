@@ -13,6 +13,7 @@ import {
   ClipboardList,
   CloudOff,
   DatabaseZap,
+  Database,
   Fingerprint,
   Gauge,
   HardHat,
@@ -125,6 +126,7 @@ const navIcons: Record<string, ReactNode> = {
   Warehouse: <Warehouse className="h-4 w-4" />,
   Dispatch: <RadioTower className="h-4 w-4" />,
   Analytics: <Activity className="h-4 w-4" />,
+  Imports: <Database className="h-4 w-4" />,
   Users: <Users className="h-4 w-4" />,
   Settings: <Settings className="h-4 w-4" />,
 };
@@ -304,7 +306,7 @@ function ShellInner({ initialPage }: { initialPage: ShellPage }) {
           </div>
           <nav className="space-y-2">
             {nav.map((item) => (
-              <button key={item.href} onClick={() => setActivePage(item.href === "/admin" ? "admin" : item.href === "/settings" ? "settings" : "dashboard")} className="flex w-full items-center gap-3 rounded-2xl border border-slate-800 bg-slate-900/50 p-3 text-left text-sm text-slate-300 hover:border-orange-400/50 hover:text-white">
+              <button key={item.href} onClick={() => { if (item.href === "/admin") setActivePage("admin"); else if (item.href === "/settings") setActivePage("settings"); else if (item.href === "/dashboard") setActivePage("dashboard"); else window.location.href = item.href; }} className="flex w-full items-center gap-3 rounded-2xl border border-slate-800 bg-slate-900/50 p-3 text-left text-sm text-slate-300 hover:border-orange-400/50 hover:text-white">
                 {navIcons[item.label]}<span className="flex-1"><span className="block font-semibold">{item.label}</span><span className="block text-xs text-slate-500">{item.description}</span></span><ChevronRight className="h-4 w-4" />
               </button>
             ))}
