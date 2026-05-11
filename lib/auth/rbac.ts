@@ -59,6 +59,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     "imports:read",
     "imports:manage",
     "users:read",
+    "workforce:read",
     "settings:read",
   ],
   director: [
@@ -80,6 +81,8 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     "imports:rollback",
     "mdm:manage",
     "users:read",
+    "workforce:read",
+    "workforce:manage",
     "settings:read",
     "audit:read",
   ],
@@ -106,6 +109,8 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     "mdm:manage",
     "users:read",
     "users:write",
+    "workforce:read",
+    "workforce:manage",
     "roles:manage",
     "settings:read",
     "settings:write",
@@ -124,6 +129,7 @@ export const ROUTE_PERMISSIONS: Record<string, Permission> = {
   "/analytics": "analytics:read",
   "/imports": "imports:read",
   "/admin": "users:read",
+  "/workforce": "workforce:read",
   "/settings": "settings:read",
 };
 

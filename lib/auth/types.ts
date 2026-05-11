@@ -23,6 +23,8 @@ export type Permission =
   | "mdm:manage"
   | "users:read"
   | "users:write"
+  | "workforce:read"
+  | "workforce:manage"
   | "roles:manage"
   | "settings:read"
   | "settings:write"

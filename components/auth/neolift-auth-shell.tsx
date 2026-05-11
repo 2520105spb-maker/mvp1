@@ -7,6 +7,7 @@ import {
   Activity,
   AlertTriangle,
   Bell,
+  BriefcaseBusiness,
   Building2,
   CheckCircle2,
   ChevronRight,
@@ -128,6 +129,7 @@ const navIcons: Record<string, ReactNode> = {
   Analytics: <Activity className="h-4 w-4" />,
   Imports: <Database className="h-4 w-4" />,
   Users: <Users className="h-4 w-4" />,
+  Workforce: <BriefcaseBusiness className="h-4 w-4" />,
   Settings: <Settings className="h-4 w-4" />,
 };
 
