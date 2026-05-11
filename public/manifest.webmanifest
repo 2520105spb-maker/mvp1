@@ -1,0 +1,11 @@
+{
+  "name": "НеоЛифт ERP",
+  "short_name": "НеоЛифт",
+  "description": "Industrial ERP/PWA for elevator field operations",
+  "start_url": "/dashboard",
+  "display": "standalone",
+  "background_color": "#07111f",
+  "theme_color": "#ff7a1a",
+  "orientation": "portrait-primary",
+  "icons": []
+}
