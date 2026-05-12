@@ -27,6 +27,8 @@ export type Permission =
   | "sync:manage"
   | "notifications:read"
   | "notifications:manage"
+  | "reports:read"
+  | "reports:manage"
   | "dispatch:read"
   | "dispatch:manage"
   | "analytics:read"

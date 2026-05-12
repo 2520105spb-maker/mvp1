@@ -66,6 +66,13 @@ export const GLOBAL_NAVIGATION: NavItem[] = [
     mobile: true,
   },
   {
+    href: "/reports",
+    label: "Reports",
+    description: "PDF, акты, документы, exports",
+    permission: "reports:read",
+    mobile: true,
+  },
+  {
     href: "/dispatch",
     label: "Dispatch",
     description: "Очередь и маршрутизация",
