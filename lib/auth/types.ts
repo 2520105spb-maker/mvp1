@@ -1,4 +1,10 @@
-export type UserRole = "mechanic" | "dispatcher" | "warehouse" | "supervisor" | "director" | "administrator";
+export type UserRole =
+  | "mechanic"
+  | "dispatcher"
+  | "warehouse"
+  | "supervisor"
+  | "director"
+  | "administrator";
 
 export type Permission =
   | "dashboard:view"
@@ -14,6 +20,9 @@ export type Permission =
   | "warehouse:read"
   | "warehouse:issue"
   | "warehouse:approve"
+  | "media:read"
+  | "media:write"
+  | "media:approve"
   | "dispatch:read"
   | "dispatch:manage"
   | "analytics:read"
