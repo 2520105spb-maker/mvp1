@@ -1,5 +1,5 @@
-import { WarehouseManagementModule } from "@/components/warehouse/warehouse-management-module";
+import { WarehouseOperationsCenter } from "@/components/warehouse/warehouse-operations-center";
 
 export default function WarehousePage() {
-  return <WarehouseManagementModule />;
+  return <WarehouseOperationsCenter />;
 }
