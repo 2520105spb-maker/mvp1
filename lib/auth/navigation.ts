@@ -59,6 +59,13 @@ export const GLOBAL_NAVIGATION: NavItem[] = [
     mobile: true,
   },
   {
+    href: "/notifications",
+    label: "Alerts",
+    description: "Realtime alerts & escalations",
+    permission: "notifications:read",
+    mobile: true,
+  },
+  {
     href: "/dispatch",
     label: "Dispatch",
     description: "Очередь и маршрутизация",

@@ -25,6 +25,8 @@ export type Permission =
   | "media:approve"
   | "sync:read"
   | "sync:manage"
+  | "notifications:read"
+  | "notifications:manage"
   | "dispatch:read"
   | "dispatch:manage"
   | "analytics:read"
