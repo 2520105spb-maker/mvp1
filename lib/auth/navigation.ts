@@ -2,6 +2,7 @@ import type { NavItem } from "./types";
 
 export const GLOBAL_NAVIGATION: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", description: "Ролевая оперативная сводка", permission: "dashboard:view", mobile: true },
+  { href: "/mechanic", label: "Mechanic", description: "Mobile field workspace", permission: "work_orders:read", roles: ["mechanic"], mobile: true },
   { href: "/objects", label: "Objects", description: "Договорные объекты и адреса", permission: "objects:read", mobile: false },
   { href: "/elevators", label: "Elevators", description: "Единицы оборудования", permission: "elevators:read", mobile: false },
   { href: "/work-orders", label: "Work Orders", description: "Заявки, ППР и аварии", permission: "work_orders:read", mobile: true },

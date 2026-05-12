@@ -116,6 +116,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
 
 export const ROUTE_PERMISSIONS: Record<string, Permission> = {
   "/dashboard": "dashboard:view",
+  "/mechanic": "work_orders:read",
   "/objects": "objects:read",
   "/elevators": "elevators:read",
   "/work-orders": "work_orders:read",

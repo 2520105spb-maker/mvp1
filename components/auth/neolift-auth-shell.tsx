@@ -120,6 +120,7 @@ const queryClient = new QueryClient();
 
 const navIcons: Record<string, ReactNode> = {
   Dashboard: <LayoutDashboard className="h-4 w-4" />,
+  Mechanic: <HardHat className="h-4 w-4" />,
   Objects: <Building2 className="h-4 w-4" />,
   Elevators: <Gauge className="h-4 w-4" />,
   "Work Orders": <ClipboardList className="h-4 w-4" />,
