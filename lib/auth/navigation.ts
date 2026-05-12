@@ -52,6 +52,13 @@ export const GLOBAL_NAVIGATION: NavItem[] = [
     mobile: true,
   },
   {
+    href: "/sync",
+    label: "Offline Sync",
+    description: "Очереди, конфликты, device sync",
+    permission: "sync:read",
+    mobile: true,
+  },
+  {
     href: "/dispatch",
     label: "Dispatch",
     description: "Очередь и маршрутизация",

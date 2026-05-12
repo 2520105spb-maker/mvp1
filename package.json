@@ -28,7 +28,8 @@
     "@tanstack/react-table": "^8.20.5",
     "@tanstack/react-virtual": "^3.10.8",
     "zustand": "^5.0.1",
-    "recharts": "^2.12.7"
+    "recharts": "^2.12.7",
+    "dexie": "^4.4.2"
   },
   "devDependencies": {}
 }

@@ -23,6 +23,8 @@ export type Permission =
   | "media:read"
   | "media:write"
   | "media:approve"
+  | "sync:read"
+  | "sync:manage"
   | "dispatch:read"
   | "dispatch:manage"
   | "analytics:read"
