@@ -1,0 +1,48 @@
+groups:
+  - name: neolift-operational-runtime
+    rules:
+      - alert: NeoliftCriticalQueueBacklog
+        expr: queue_oldest_job_age_seconds{queue=~"emergency|sla|notifications|dispatch"} > 120
+        for: 2m
+        labels:
+          severity: critical
+          service: neolift-workers
+        annotations:
+          summary: Critical operational queue backlog is older than 2 minutes.
+          runbook: Check Redis, critical-worker replicas, DLQ and emergency/SLA worker logs.
+      - alert: NeoliftWebSocketReconnectStorm
+        expr: rate(websocket_reconnect_total[5m]) > 20
+        for: 5m
+        labels:
+          severity: warning
+          service: websocket-gateway
+        annotations:
+          summary: WebSocket reconnect storm detected for field realtime channels.
+          runbook: Inspect ingress, Redis pub/sub lag, mobile network errors and deployment rollout state.
+      - alert: NeoliftSyncConflictSpike
+        expr: rate(sync_conflict_total[10m]) > 5
+        for: 10m
+        labels:
+          severity: warning
+          service: sync-workers
+        annotations:
+          summary: Offline sync conflicts are above normal threshold.
+          runbook: Check recent deployments, schema migrations, mobile app version distribution and conflict records.
+      - alert: NeoliftMediaProcessingLag
+        expr: queue_oldest_job_age_seconds{queue=~"media-processing|ocr|ai-validation"} > 900
+        for: 15m
+        labels:
+          severity: warning
+          service: media-workers
+        annotations:
+          summary: Media/OCR/AI validation backlog may block photo evidence approval.
+          runbook: Scale media workers, inspect S3 errors and verify OCR/AI provider health.
+      - alert: NeoliftPostgresReplicationLag
+        expr: postgres_replication_lag_seconds > 60
+        for: 5m
+        labels:
+          severity: critical
+          service: postgresql
+        annotations:
+          summary: PostgreSQL replica lag exceeds operational threshold.
+          runbook: Check primary load, WAL archive, network, long transactions and read replica health.

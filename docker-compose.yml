@@ -1,0 +1,134 @@
+name: neolift-runtime
+
+services:
+  app:
+    build:
+      context: .
+      target: runner
+    image: neolift/erp-app:local
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://neolift:neolift@postgres:5432/neolift?schema=public
+      REDIS_URL: redis://redis:6379/0
+      S3_ENDPOINT: http://minio:9000
+      S3_BUCKET_MEDIA: neolift-media
+      S3_BUCKET_REPORTS: neolift-reports
+      NEXT_PUBLIC_APP_ENV: local
+    ports:
+      - "3000:3000"
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:3000').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""]
+      interval: 20s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
+    stop_grace_period: 30s
+
+  worker-critical:
+    build:
+      context: .
+      target: worker
+    image: neolift/erp-worker:local
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://neolift:neolift@postgres:5432/neolift?schema=public
+      REDIS_URL: redis://redis:6379/0
+      WORKER_QUEUES: emergency,sla,notifications,dispatch
+      WORKER_CONCURRENCY: 8
+    stop_grace_period: 60s
+
+  worker-media:
+    build:
+      context: .
+      target: worker
+    image: neolift/erp-worker:local
+    depends_on:
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://neolift:neolift@postgres:5432/neolift?schema=public
+      REDIS_URL: redis://redis:6379/0
+      S3_ENDPOINT: http://minio:9000
+      S3_BUCKET_MEDIA: neolift-media
+      WORKER_QUEUES: media-processing,ocr,ai-validation,pdf-generation,exports
+      WORKER_CONCURRENCY: 4
+    stop_grace_period: 120s
+
+  postgres:
+    image: postgis/postgis:16-3.4
+    environment:
+      POSTGRES_DB: neolift
+      POSTGRES_USER: neolift
+      POSTGRES_PASSWORD: neolift
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./prisma/database-hardening.sql:/docker-entrypoint-initdb.d/20-database-hardening.sql:ro
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U neolift -d neolift"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7.2-alpine
+    command: ["redis-server", "--appendonly", "yes", "--save", "60", "1000"]
+    volumes:
+      - redis-data:/data
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+
+  minio:
+    image: minio/minio:RELEASE.2024-05-10T01-41-38Z
+    command: ["server", "/data", "--console-address", ":9001"]
+    environment:
+      MINIO_ROOT_USER: neolift
+      MINIO_ROOT_PASSWORD: neolift-local-password
+    volumes:
+      - minio-data:/data
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  minio-init:
+    image: minio/mc:RELEASE.2024-05-09T17-04-24Z
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "mc alias set local http://minio:9000 neolift neolift-local-password &&
+      mc mb --ignore-existing local/neolift-media &&
+      mc mb --ignore-existing local/neolift-reports &&
+      mc anonymous set none local/neolift-media &&
+      mc anonymous set none local/neolift-reports"
+
+volumes:
+  postgres-data:
+  redis-data:
+  minio-data:
