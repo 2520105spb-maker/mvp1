@@ -175,6 +175,50 @@ enum DispatchEventType {
   EMERGENCY_ESCALATED
 }
 
+enum GeoObjectKind {
+  SERVICE_OBJECT
+  ELEVATOR
+  WAREHOUSE
+  TECHNICIAN
+  EMERGENCY
+}
+
+enum GeoRouteStatus {
+  PLANNED
+  ACTIVE
+  REROUTING
+  DELAYED
+  COMPLETED
+  CANCELLED
+}
+
+enum TrafficSeverity {
+  FREE
+  MODERATE
+  HEAVY
+  BLOCKED
+}
+
+enum LocationEventType {
+  LOCATION_UPDATE
+  ARRIVAL_DETECTED
+  DEPARTURE_DETECTED
+  ETA_CHANGED
+  ROUTE_CHANGED
+  EMERGENCY_REROUTE
+  GPS_STALE
+  SPOOFING_SUSPECTED
+}
+
+enum GeoAuditAction {
+  ROUTE_CHANGED
+  ETA_CHANGED
+  GEO_OVERRIDE
+  EMERGENCY_ROUTE_DECISION
+  ARRIVAL_DETECTED
+  DEPARTURE_DETECTED
+}
+
 model Tenant {
   id        String   @id @default(cuid())
   name      String
@@ -207,6 +251,17 @@ model Tenant {
   geoZones              GeoZone[]
   scheduleConflicts     ScheduleConflict[]
   emergencyDispatches   EmergencyDispatch[]
+  geoObjects            GeoObject[]
+  elevatorLocations     ElevatorLocation[]
+  technicianLocations   TechnicianLocation[]
+  geoRoutePlans         GeoRoutePlan[]
+  geoTrafficSnapshots   TrafficSnapshot[]
+  locationEvents        LocationEvent[]
+  arrivalPredictions    ArrivalPrediction[]
+  geoAssignments        GeoAssignment[]
+  routeHistories        RouteHistory[]
+  geoAuditLogs          GeoAuditLog[]
+  emergencyZones        EmergencyZone[]
 
   @@index([slug])
 }
@@ -1243,4 +1298,271 @@ model DispatchEventLog {
   @@unique([tenantId, auditHash])
   @@index([tenantId, eventType, occurredAt])
   @@index([tenantId, dispatchQueueId, occurredAt])
+}
+
+
+model GeoObject {
+  id            String        @id @default(cuid())
+  tenantId      String
+  externalId    String?
+  kind          GeoObjectKind
+  label         String
+  address       String
+  regionId      String
+  geoZoneId     String?
+  point         Unsupported("geometry(Point,4326)")
+  clusterKey    String
+  slaRisk       String
+  active        Boolean       @default(true)
+  metadata      Json?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId, kind, active])
+  @@index([tenantId, regionId, active])
+  @@index([tenantId, clusterKey])
+}
+
+model ElevatorLocation {
+  id              String   @id @default(cuid())
+  tenantId        String
+  elevatorId      String
+  objectId        String
+  factoryNumber   String
+  model           String
+  controller      String?
+  point           Unsupported("geometry(Point,4326)")
+  floorCount      Int
+  servicePriority String
+  updatedAt       DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@unique([tenantId, elevatorId])
+  @@index([tenantId, objectId])
+  @@index([tenantId, servicePriority])
+}
+
+model TechnicianLocation {
+  id              String    @id @default(cuid())
+  tenantId        String
+  technicianId    String
+  point           Unsupported("geometry(Point,4326)")
+  heading         Int
+  speedKmh        Decimal   @db.Decimal(8, 2)
+  freshness       String
+  availability    String
+  lastSeenAt      DateTime
+  deviceId        String?
+  spoofRiskScore  Int       @default(0)
+  metadata        Json?
+  createdAt       DateTime  @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId, technicianId, lastSeenAt])
+  @@index([tenantId, freshness, lastSeenAt])
+  @@index([tenantId, availability])
+}
+
+model EmergencyZone {
+  id              String   @id @default(cuid())
+  tenantId        String
+  geoZoneId       String
+  incidentId      String
+  center          Unsupported("geometry(Point,4326)")
+  radiusMeters    Int
+  passengerRisk   Boolean  @default(false)
+  escalationLevel Int
+  active          Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  resolvedAt      DateTime?
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId, active, escalationLevel])
+  @@index([tenantId, passengerRisk, active])
+}
+
+model GeoRoutePlan {
+  id                  String         @id @default(cuid())
+  tenantId            String
+  technicianId        String
+  provider            String
+  status              GeoRouteStatus @default(PLANNED)
+  distanceKm          Decimal        @db.Decimal(10, 2)
+  durationMinutes     Int
+  trafficDelayMinutes Int
+  slaRiskAfterRoute   Int
+  polyline            Unsupported("geometry(LineString,4326)")?
+  routeVersion        Int            @default(1)
+  optimizationMeta    Json?
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime       @updatedAt
+
+  tenant      Tenant              @relation(fields: [tenantId], references: [id])
+  stops       GeoRouteStop[]
+  predictions ArrivalPrediction[]
+  events      LocationEvent[]
+  histories   RouteHistory[]
+
+  @@index([tenantId, technicianId, status])
+  @@index([tenantId, status, updatedAt])
+  @@index([tenantId, routeVersion])
+}
+
+model GeoRouteStop {
+  id                  String   @id @default(cuid())
+  routePlanId         String
+  objectId            String
+  sequence            Int
+  point               Unsupported("geometry(Point,4326)")
+  eta                 DateTime
+  slaMinutesRemaining Int
+  arrivedAt           DateTime?
+  departedAt          DateTime?
+
+  routePlan   GeoRoutePlan       @relation(fields: [routePlanId], references: [id])
+  predictions ArrivalPrediction[]
+
+  @@unique([routePlanId, sequence])
+  @@index([objectId])
+  @@index([eta])
+}
+
+model GeoTravelEstimate {
+  id               String   @id @default(cuid())
+  tenantId         String
+  fromPoint        Unsupported("geometry(Point,4326)")
+  toPoint          Unsupported("geometry(Point,4326)")
+  baseMinutes      Int
+  trafficMinutes   Int
+  emergencyMinutes Int
+  confidence       Int
+  provider         String
+  calculatedAt     DateTime @default(now())
+
+  @@index([tenantId, provider, calculatedAt])
+  @@index([confidence])
+}
+
+model TrafficSnapshot {
+  id              String          @id @default(cuid())
+  tenantId        String
+  geoZoneId       String
+  severity        TrafficSeverity
+  averageSpeedKmh Decimal         @db.Decimal(8, 2)
+  delayMinutes    Int
+  confidence      Int
+  capturedAt      DateTime        @default(now())
+  payload         Json?
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId, geoZoneId, capturedAt])
+  @@index([tenantId, severity, capturedAt])
+}
+
+model LocationEvent {
+  id              String            @id @default(cuid())
+  tenantId        String
+  technicianId    String?
+  routePlanId     String?
+  eventType       LocationEventType
+  point           Unsupported("geometry(Point,4326)")?
+  message         String
+  payload         Json?
+  auditHash       String
+  previousHash    String?
+  occurredAt      DateTime          @default(now())
+
+  tenant    Tenant        @relation(fields: [tenantId], references: [id])
+  routePlan GeoRoutePlan? @relation(fields: [routePlanId], references: [id])
+
+  @@unique([tenantId, auditHash])
+  @@index([tenantId, eventType, occurredAt])
+  @@index([tenantId, technicianId, occurredAt])
+  @@index([tenantId, routePlanId, occurredAt])
+}
+
+model ArrivalPrediction {
+  id                    String   @id @default(cuid())
+  tenantId              String
+  routePlanId           String
+  routeStopId           String
+  eta                   DateTime
+  etaDeltaMinutes       Int
+  slaBreachProbability  Int
+  reason                String
+  calculatedAt          DateTime @default(now())
+
+  tenant    Tenant       @relation(fields: [tenantId], references: [id])
+  routePlan GeoRoutePlan @relation(fields: [routePlanId], references: [id])
+  routeStop GeoRouteStop @relation(fields: [routeStopId], references: [id])
+
+  @@index([tenantId, routePlanId, calculatedAt])
+  @@index([tenantId, slaBreachProbability, eta])
+}
+
+model GeoAssignment {
+  id                   String   @id @default(cuid())
+  tenantId             String
+  workOrderId          String
+  technicianId         String
+  objectId             String
+  etaMinutes           Int
+  distanceKm           Decimal  @db.Decimal(10, 2)
+  routeImpactMinutes   Int
+  recommendationScore  Int
+  emergencyOverride    Boolean  @default(false)
+  confirmedAt          DateTime?
+  createdAt            DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId, workOrderId, createdAt])
+  @@index([tenantId, technicianId, createdAt])
+  @@index([tenantId, emergencyOverride, createdAt])
+}
+
+model RouteHistory {
+  id              String   @id @default(cuid())
+  tenantId        String
+  routePlanId     String
+  technicianId    String
+  completedAt     DateTime
+  plannedMinutes  Int
+  actualMinutes   Int
+  deviationMeters Int
+  slaPreserved    Boolean  @default(true)
+  replayPayload   Json?
+
+  tenant    Tenant       @relation(fields: [tenantId], references: [id])
+  routePlan GeoRoutePlan @relation(fields: [routePlanId], references: [id])
+
+  @@index([tenantId, technicianId, completedAt])
+  @@index([tenantId, slaPreserved, completedAt])
+}
+
+model GeoAuditLog {
+  id            String         @id @default(cuid())
+  tenantId      String
+  action        GeoAuditAction
+  actorUserId   String?
+  target        String
+  before        Json?
+  after         Json?
+  correlationId String
+  hash          String
+  previousHash  String?
+  createdAt     DateTime       @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@unique([tenantId, hash])
+  @@index([tenantId, action, createdAt])
+  @@index([tenantId, actorUserId, createdAt])
+  @@index([tenantId, correlationId])
 }

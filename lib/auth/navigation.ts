@@ -80,6 +80,13 @@ export const GLOBAL_NAVIGATION: NavItem[] = [
     mobile: true,
   },
   {
+    href: "/maps",
+    label: "Geo Ops",
+    description: "Карта, маршруты, ETA, геозоны",
+    permission: "geo:read",
+    mobile: true,
+  },
+  {
     href: "/analytics",
     label: "Analytics",
     description: "KPI, SLA, надежность",

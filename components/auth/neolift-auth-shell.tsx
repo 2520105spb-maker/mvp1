@@ -21,6 +21,7 @@ import {
   LayoutDashboard,
   LockKeyhole,
   LogOut,
+  Map,
   Menu,
   MonitorSmartphone,
   RadioTower,
@@ -126,8 +127,10 @@ const navIcons: Record<string, ReactNode> = {
   "Work Orders": <ClipboardList className="h-4 w-4" />,
   Warehouse: <Warehouse className="h-4 w-4" />,
   Dispatch: <RadioTower className="h-4 w-4" />,
+  "Geo Ops": <Map className="h-4 w-4" />,
   Analytics: <Activity className="h-4 w-4" />,
   Imports: <Database className="h-4 w-4" />,
+  Identity: <Users className="h-4 w-4" />,
   Users: <Users className="h-4 w-4" />,
   Settings: <Settings className="h-4 w-4" />,
 };

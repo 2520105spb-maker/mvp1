@@ -33,6 +33,8 @@ export type Permission =
   | "reports:manage"
   | "dispatch:read"
   | "dispatch:manage"
+  | "geo:read"
+  | "geo:manage"
   | "analytics:read"
   | "imports:read"
   | "imports:manage"
