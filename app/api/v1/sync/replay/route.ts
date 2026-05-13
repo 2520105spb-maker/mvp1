@@ -11,7 +11,7 @@ import {
 } from "@/lib/integration/operational-store";
 
 export async function POST(request: NextRequest) {
-  const session = requireSession(request, "sync:write");
+  const session = await requireSession(request, "sync:write");
   if (isErrorResponse(session)) return session;
   const body = await readJson<{
     deviceId: string;

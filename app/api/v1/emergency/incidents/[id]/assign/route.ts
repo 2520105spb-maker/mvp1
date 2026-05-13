@@ -15,7 +15,7 @@ export async function POST(
   request: NextRequest,
   { params }: { params: { id: string } },
 ) {
-  const session = requireSession(request, "emergency:manage");
+  const session = await requireSession(request, "emergency:manage");
   if (isErrorResponse(session)) return session;
   const body = await readJson<{ mechanicId: string }>(request);
   if (!body.mechanicId)

@@ -1,6 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { apiError, json, readJson } from "@/lib/integration/api";
-import { createSession, type Role } from "@/lib/integration/operational-store";
+import type { Role } from "@/lib/integration/domain";
+import { repositories } from "@/lib/integration/services";
 
 const roles: Role[] = [
   "mechanic",
@@ -18,7 +19,7 @@ export async function POST(request: NextRequest) {
   const role = body.role ?? "mechanic";
   if (!roles.includes(role))
     return apiError("VALIDATION_FAILED", "Неизвестная роль", 422);
-  const session = createSession(role);
+  const session = await repositories.sessions.create(role);
   const response = json({ session });
   response.cookies.set("neo_session", session.id, {
     httpOnly: true,

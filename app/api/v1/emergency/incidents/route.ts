@@ -13,13 +13,13 @@ import {
 } from "@/lib/integration/operational-store";
 
 export async function GET(request: NextRequest) {
-  const session = requireSession(request, "emergency:manage");
+  const session = await requireSession(request, "emergency:manage");
   if (isErrorResponse(session)) return session;
   return json({ incidents: getOperationalState().emergency });
 }
 
 export async function POST(request: NextRequest) {
-  const session = requireSession(request, "emergency:manage");
+  const session = await requireSession(request, "emergency:manage");
   if (isErrorResponse(session)) return session;
   const body = await readJson<{
     workOrderId: string;

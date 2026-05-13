@@ -13,7 +13,7 @@ export async function GET(
   request: NextRequest,
   { params }: { params: { id: string } },
 ) {
-  const session = requireSession(request, "reports:read");
+  const session = await requireSession(request, "reports:read");
   if (isErrorResponse(session)) return session;
   const workOrder = getOperationalState().workOrders.find(
     (item) => item.id === params.id,

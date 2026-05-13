@@ -1,16 +1,14 @@
 import { NextRequest } from "next/server";
 import {
   apiError,
+  domainError,
   isErrorResponse,
   json,
   readJson,
   requireSession,
 } from "@/lib/integration/api";
-import {
-  getOperationalState,
-  touchWorkOrder,
-  type WorkOrderStatus,
-} from "@/lib/integration/operational-store";
+import type { WorkOrderStatus } from "@/lib/integration/domain";
+import { repositories } from "@/lib/integration/services";
 
 const allowed: WorkOrderStatus[] = [
   "draft",
@@ -26,16 +24,20 @@ export async function POST(
   request: NextRequest,
   { params }: { params: { id: string } },
 ) {
-  const session = requireSession(request, "work-orders:write");
+  const session = await requireSession(request, "work-orders:write");
   if (isErrorResponse(session)) return session;
   const body = await readJson<{ status: WorkOrderStatus }>(request);
   if (!body.status || !allowed.includes(body.status))
     return apiError("VALIDATION_FAILED", "Некорректный статус", 422);
-  const workOrder = getOperationalState().workOrders.find(
-    (item) => item.id === params.id,
-  );
-  if (!workOrder) return apiError("NOT_FOUND", "Заказ-наряд не найден", 404);
-  workOrder.status = body.status;
-  if (body.status === "in_progress") workOrder.workItems ||= [];
-  return json({ workOrder: touchWorkOrder(workOrder) });
+  try {
+    return json({
+      workOrder: await repositories.workOrders.setStatus(
+        params.id,
+        body.status,
+        session.userId,
+      ),
+    });
+  } catch (error) {
+    return domainError(error);
+  }
 }

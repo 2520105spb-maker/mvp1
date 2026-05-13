@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { findSession, type Role, type Session } from "./operational-store";
+import { DomainError, type Role, type Session } from "./domain";
+import { repositories } from "./services";
 
 export type ApiResult<T> =
   | { ok: true; data: T }
@@ -21,6 +22,19 @@ export function apiError(
   );
 }
 
+export function domainError(error: unknown) {
+  if (error instanceof DomainError)
+    return apiError(error.code, error.message, error.status, error.details);
+  console.error(
+    JSON.stringify({
+      level: "error",
+      event: "api_unhandled_error",
+      message: error instanceof Error ? error.message : "Unknown error",
+    }),
+  );
+  return apiError("VALIDATION_FAILED", "Операция не выполнена", 500);
+}
+
 export async function readJson<T extends Record<string, unknown>>(
   request: NextRequest,
 ): Promise<Partial<T>> {
@@ -40,6 +54,7 @@ const permissions: Record<Role, string[]> = {
     "media:write",
     "sync:write",
     "notifications:read",
+    "reports:read",
   ],
   dispatcher: [
     "objects:read",
@@ -49,6 +64,7 @@ const permissions: Record<Role, string[]> = {
     "dispatch:manage",
     "emergency:manage",
     "notifications:read",
+    "reports:read",
   ],
   warehouse: ["warehouse:manage", "materials:write", "notifications:read"],
   supervisor: [
@@ -58,6 +74,7 @@ const permissions: Record<Role, string[]> = {
     "dispatch:manage",
     "reports:read",
     "notifications:read",
+    "emergency:manage",
   ],
   director: [
     "objects:read",
@@ -65,19 +82,20 @@ const permissions: Record<Role, string[]> = {
     "work-orders:read",
     "reports:read",
     "notifications:read",
+    "emergency:manage",
   ],
   administrator: ["*"],
 };
 
-export function getSessionFromRequest(request: NextRequest) {
-  return findSession(request.cookies.get("neo_session")?.value);
+export async function getSessionFromRequest(request: NextRequest) {
+  return repositories.sessions.find(request.cookies.get("neo_session")?.value);
 }
 
-export function requireSession(
+export async function requireSession(
   request: NextRequest,
   permission?: string,
-): Session | NextResponse {
-  const session = getSessionFromRequest(request);
+): Promise<Session | NextResponse> {
+  const session = await getSessionFromRequest(request);
   if (!session)
     return apiError("UNAUTHENTICATED", "Требуется вход в систему", 401);
   if (permission && !hasPermission(session.role, permission))

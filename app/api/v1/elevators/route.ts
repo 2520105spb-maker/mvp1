@@ -1,19 +1,14 @@
 import { NextRequest } from "next/server";
 import { isErrorResponse, json, requireSession } from "@/lib/integration/api";
-import { getOperationalState } from "@/lib/integration/operational-store";
+import { repositories } from "@/lib/integration/services";
 
 export async function GET(request: NextRequest) {
-  const session = requireSession(request, "elevators:read");
+  const session = await requireSession(request, "elevators:read");
   if (isErrorResponse(session)) return session;
-  const objectId = request.nextUrl.searchParams.get("objectId");
-  const search =
-    request.nextUrl.searchParams.get("search")?.toLowerCase() ?? "";
-  const elevators = getOperationalState().elevators.filter(
-    (item) =>
-      (!objectId || item.objectId === objectId) &&
-      (!search ||
-        item.number.toLowerCase().includes(search) ||
-        item.factoryNumber.toLowerCase().includes(search)),
-  );
-  return json({ elevators });
+  return json({
+    elevators: await repositories.objects.listElevators(
+      request.nextUrl.searchParams.get("objectId") ?? undefined,
+      request.nextUrl.searchParams.get("search") ?? "",
+    ),
+  });
 }

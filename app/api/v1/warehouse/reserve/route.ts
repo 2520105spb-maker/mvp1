@@ -9,7 +9,7 @@ import {
 import { reserveMaterial } from "@/lib/integration/operational-store";
 
 export async function POST(request: NextRequest) {
-  const session = requireSession(request, "warehouse:manage");
+  const session = await requireSession(request, "warehouse:manage");
   if (isErrorResponse(session)) return session;
   const body = await readJson<{
     workOrderId: string;

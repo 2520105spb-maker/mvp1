@@ -3,7 +3,7 @@ import { isErrorResponse, json, requireSession } from "@/lib/integration/api";
 import { getOperationalState } from "@/lib/integration/operational-store";
 
 export async function GET(request: NextRequest) {
-  const session = requireSession(request, "notifications:read");
+  const session = await requireSession(request, "notifications:read");
   if (isErrorResponse(session)) return session;
   const notifications = getOperationalState().notifications.filter(
     (item) =>

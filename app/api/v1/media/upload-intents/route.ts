@@ -12,7 +12,7 @@ import {
 } from "@/lib/integration/operational-store";
 
 export async function POST(request: NextRequest) {
-  const session = requireSession(request, "media:write");
+  const session = await requireSession(request, "media:write");
   if (isErrorResponse(session)) return session;
   const body = await readJson<{
     ownerType: MediaFile["ownerType"];

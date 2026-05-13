@@ -1,21 +1,19 @@
 import { NextRequest } from "next/server";
 import {
   apiError,
+  domainError,
   isErrorResponse,
   json,
   readJson,
   requireSession,
 } from "@/lib/integration/api";
-import {
-  getOperationalState,
-  touchWorkOrder,
-} from "@/lib/integration/operational-store";
+import { repositories } from "@/lib/integration/services";
 
 export async function POST(
   request: NextRequest,
   { params }: { params: { id: string } },
 ) {
-  const session = requireSession(request, "work-orders:write");
+  const session = await requireSession(request, "work-orders:write");
   if (isErrorResponse(session)) return session;
   const body = await readJson<{
     action: string;
@@ -28,16 +26,19 @@ export async function POST(
       "Нужно указать работу, узел и количество",
       422,
     );
-  const workOrder = getOperationalState().workOrders.find(
-    (item) => item.id === params.id,
-  );
-  if (!workOrder) return apiError("NOT_FOUND", "Заказ-наряд не найден", 404);
-  const item = {
-    id: `wi_${Date.now()}`,
-    action: body.action,
-    element: body.element,
-    quantity: Number(body.quantity),
-  };
-  workOrder.workItems.push(item);
-  return json({ workOrder: touchWorkOrder(workOrder), item });
+  try {
+    return json(
+      await repositories.workOrders.addWorkItem(
+        params.id,
+        {
+          action: body.action,
+          element: body.element,
+          quantity: Number(body.quantity),
+        },
+        session.userId,
+      ),
+    );
+  } catch (error) {
+    return domainError(error);
+  }
 }
