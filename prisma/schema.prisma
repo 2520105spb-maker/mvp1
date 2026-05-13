@@ -1,0 +1,1246 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum WorkOrderStatus {
+  DRAFT
+  ASSIGNED
+  ACCEPTED
+  IN_PROGRESS
+  WAITING_MATERIALS
+  WAITING_APPROVAL
+  COMPLETED
+  REJECTED
+  CLOSED
+  ARCHIVED
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum MovementType {
+  RECEIPT
+  RESERVATION
+  WRITE_OFF
+  TRANSFER
+  RETURN
+  ADJUSTMENT
+  AUDIT_CORRECTION
+}
+
+enum DomainEventStatus {
+  PENDING
+  PUBLISHED
+  FAILED
+  DEAD_LETTER
+}
+
+enum SyncStatus {
+  QUEUED
+  APPLIED
+  CONFLICT
+  REJECTED
+}
+
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  ESCALATED
+}
+
+enum MediaStatus {
+  LOCAL_PENDING
+  UPLOADED
+  PROCESSING
+  READY
+  FAILED
+}
+
+enum IdentityUserStatus {
+  ACTIVE
+  LOCKED
+  SUSPENDED
+  INVITED
+}
+
+enum IdentitySessionStatus {
+  ACTIVE
+  REFRESH_REQUIRED
+  OFFLINE_GRACE
+  REVOKED
+  EXPIRED
+}
+
+enum DeviceTrustStatus {
+  TRUSTED
+  PENDING
+  REVOKED
+  LOST
+}
+
+enum LoginAttemptOutcome {
+  SUCCESS
+  FAILED
+  LOCKED
+  STEP_UP_REQUIRED
+}
+
+enum SecurityEventType {
+  LOGIN
+  LOGOUT
+  FAILED_LOGIN
+  PASSWORD_RESET
+  DEVICE_REGISTRATION
+  DEVICE_REVOKED
+  SESSION_REVOKED
+  REFRESH_ROTATED
+  PERMISSION_CHANGE
+  OFFLINE_RECONNECT
+  SUSPICIOUS_ACTIVITY
+}
+
+enum SecuritySeverity {
+  INFO
+  WARNING
+  CRITICAL
+}
+
+enum DispatchPriority {
+  ROUTINE
+  PLANNED
+  URGENT
+  EMERGENCY
+}
+
+enum DispatchQueueStatus {
+  NEW
+  TRIAGED
+  SUGGESTED
+  ASSIGNED
+  ACCEPTED
+  IN_ROUTE
+  ON_SITE
+  DELAYED
+  BREACH_RISK
+  COMPLETED
+  CANCELLED
+}
+
+enum TechnicianAvailabilityStatus {
+  AVAILABLE
+  ASSIGNED
+  IN_ROUTE
+  ON_SITE
+  BREAK
+  OFF_SHIFT
+  SICK
+}
+
+enum DispatchShiftKind {
+  DAY
+  NIGHT
+  ON_CALL
+  OVERTIME
+}
+
+enum ScheduleConflictType {
+  SKILL_GAP
+  SLA_RISK
+  ROUTE_OVERLAP
+  OVERTIME
+  REGION_SCOPE
+  EMERGENCY_OVERRIDE
+}
+
+enum DispatchEventType {
+  JOB_RECEIVED
+  PRIORITY_ESCALATED
+  ASSIGNMENT_SUGGESTED
+  ASSIGNMENT_CONFIRMED
+  MECHANIC_ACCEPTED
+  MECHANIC_DELAYED
+  REASSIGNMENT_REQUESTED
+  SCHEDULE_REBUILT
+  SLA_BREACH
+  EMERGENCY_ESCALATED
+}
+
+model Tenant {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  regions       Region[]
+  customers     Customer[]
+  users         IdentityUser[]
+  workOrders    WorkOrder[]
+  warehouses    Warehouse[]
+  materials     Material[]
+  auditRecords          AuditRecord[]
+  domainEvents          DomainEvent[]
+  identitySessions      IdentitySession[]
+  refreshTokens         RefreshToken[]
+  trustedDevices        TrustedDevice[]
+  loginAttempts         LoginAttempt[]
+  securityEvents        SecurityEvent[]
+  passwordResetRequests PasswordResetRequest[]
+  authAuditLogs         AuthAuditLog[]
+  offlineSessions       OfflineSession[]
+  dispatchQueues        DispatchQueue[]
+  technicianSchedules   TechnicianSchedule[]
+  dispatchShifts        DispatchShift[]
+  dispatchAssignments   DispatchAssignment[]
+  routePlans            RoutePlan[]
+  dispatchEvents        DispatchEventLog[]
+  geoZones              GeoZone[]
+  scheduleConflicts     ScheduleConflict[]
+  emergencyDispatches   EmergencyDispatch[]
+
+  @@index([slug])
+}
+
+model Region {
+  id        String   @id @default(cuid())
+  tenantId  String
+  name      String
+  code      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant      Tenant          @relation(fields: [tenantId], references: [id])
+  objects     ServiceObject[]
+  technicians Technician[]
+
+  @@unique([tenantId, code])
+  @@index([tenantId, name])
+}
+
+model Customer {
+  id        String   @id @default(cuid())
+  tenantId  String
+  name      String
+  inn       String?
+  contact   String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  deletedAt DateTime?
+
+  tenant  Tenant          @relation(fields: [tenantId], references: [id])
+  objects ServiceObject[]
+
+  @@index([tenantId, name])
+  @@index([tenantId, deletedAt])
+}
+
+model ServiceObject {
+  id          String   @id @default(cuid())
+  tenantId    String
+  customerId  String
+  regionId    String
+  address     String
+  contractNo  String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  deletedAt   DateTime?
+
+  customer   Customer    @relation(fields: [customerId], references: [id])
+  region     Region      @relation(fields: [regionId], references: [id])
+  elevators  Elevator[]
+  workOrders WorkOrder[]
+
+  @@index([tenantId, regionId])
+  @@index([tenantId, customerId])
+  @@index([tenantId, address])
+}
+
+model Elevator {
+  id            String   @id @default(cuid())
+  tenantId      String
+  objectId      String
+  factoryNumber String
+  manufacturer  String
+  controller    String?
+  model         String?
+  active        Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  deletedAt     DateTime?
+
+  object      ServiceObject @relation(fields: [objectId], references: [id])
+  workOrders  WorkOrder[]
+  mediaFiles  MediaFile[]
+
+  @@unique([tenantId, factoryNumber])
+  @@index([tenantId, objectId])
+  @@index([tenantId, manufacturer])
+}
+
+model IdentityUser {
+  id                String             @id @default(cuid())
+  tenantId          String
+  login             String?
+  phone             String
+  displayName       String
+  email             String?
+  passwordHash      String?
+  passwordVersion   Int                @default(1)
+  status            IdentityUserStatus @default(ACTIVE)
+  active            Boolean            @default(true)
+  lockedUntil       DateTime?
+  lastLoginAt       DateTime?
+  passwordChangedAt DateTime?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+
+  tenant                Tenant                 @relation(fields: [tenantId], references: [id])
+  technician            Technician?
+  roles                 UserRoleAssignment[]
+  auditRecords          AuditRecord[]
+  approvals             Approval[]             @relation("ApprovalRequester")
+  identitySessions      IdentitySession[]
+  refreshTokens         RefreshToken[]
+  trustedDevices        TrustedDevice[]
+  loginAttempts         LoginAttempt[]
+  securityEvents        SecurityEvent[]
+  passwordResetRequests PasswordResetRequest[]
+  authAuditLogs         AuthAuditLog[]          @relation("AuthAuditActor")
+  offlineSessions       OfflineSession[]
+  webAuthnCredentials   WebAuthnCredential[]
+
+  @@unique([tenantId, phone])
+  @@unique([tenantId, login])
+  @@index([tenantId, active])
+  @@index([tenantId, status])
+  @@index([tenantId, lastLoginAt])
+}
+
+model Technician {
+  id        String   @id @default(cuid())
+  tenantId  String
+  userId    String   @unique
+  regionId  String
+  code      String
+  skills    String[]
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user       IdentityUser @relation(fields: [userId], references: [id])
+  region     Region       @relation(fields: [regionId], references: [id])
+  workOrders          WorkOrder[]
+  dispatchSchedules   TechnicianSchedule[]
+  dispatchShifts      DispatchShift[]
+  dispatchAssignments DispatchAssignment[]
+  routePlans          RoutePlan[]
+
+  @@unique([tenantId, code])
+  @@index([tenantId, regionId, active])
+}
+
+model Role {
+  id          String   @id @default(cuid())
+  tenantId    String
+  code        String
+  name        String
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  permissions Permission[]
+  users       UserRoleAssignment[]
+
+  @@unique([tenantId, code])
+}
+
+model Permission {
+  id        String   @id @default(cuid())
+  roleId    String
+  action    String
+  scope     String
+  createdAt DateTime @default(now())
+
+  role Role @relation(fields: [roleId], references: [id])
+
+  @@unique([roleId, action, scope])
+  @@index([action, scope])
+}
+
+model UserRoleAssignment {
+  id        String   @id @default(cuid())
+  userId    String
+  roleId    String
+  regionIds String[]
+  objectIds String[]
+  createdAt DateTime @default(now())
+
+  user IdentityUser @relation(fields: [userId], references: [id])
+  role Role         @relation(fields: [roleId], references: [id])
+
+  @@unique([userId, roleId])
+}
+
+model WorkOrder {
+  id             String          @id @default(cuid())
+  tenantId       String
+  objectId       String
+  elevatorId     String?
+  technicianId   String?
+  number         String
+  typeCode       String
+  status         WorkOrderStatus @default(DRAFT)
+  priority       Priority        @default(MEDIUM)
+  title          String
+  description    String?
+  acceptedAt     DateTime?
+  startedAt      DateTime?
+  completedAt    DateTime?
+  closedAt       DateTime?
+  serverVersion  Int             @default(1)
+  offlineVersion Int             @default(0)
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  deletedAt      DateTime?
+
+  tenant       Tenant              @relation(fields: [tenantId], references: [id])
+  object       ServiceObject       @relation(fields: [objectId], references: [id])
+  elevator     Elevator?           @relation(fields: [elevatorId], references: [id])
+  technician   Technician?         @relation(fields: [technicianId], references: [id])
+  materials    WorkOrderMaterial[]
+  mediaFiles   MediaFile[]
+  requirements PhotoRequirement[]
+  signatures   Signature[]
+  slaEvents    SLAEvent[]
+  approvals    Approval[]
+  emergency    EmergencyEvent?
+  syncOps              SyncOperation[]
+  dispatchQueue        DispatchQueue?
+  dispatchAssignments  DispatchAssignment[]
+  emergencyDispatch    EmergencyDispatch?
+
+  @@unique([tenantId, number])
+  @@index([tenantId, status, priority])
+  @@index([tenantId, technicianId, status])
+  @@index([tenantId, objectId, createdAt])
+  @@index([tenantId, updatedAt])
+}
+
+model WorkOrderMaterial {
+  id          String   @id @default(cuid())
+  workOrderId String
+  materialId  String
+  quantity    Decimal  @db.Decimal(12, 3)
+  reserved    Boolean  @default(false)
+  writtenOff  Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  workOrder WorkOrder @relation(fields: [workOrderId], references: [id])
+  material  Material  @relation(fields: [materialId], references: [id])
+
+  @@unique([workOrderId, materialId])
+}
+
+model PhotoRequirement {
+  id          String   @id @default(cuid())
+  workOrderId String
+  code        String
+  title       String
+  required    Boolean  @default(true)
+  satisfied   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  workOrder WorkOrder @relation(fields: [workOrderId], references: [id])
+
+  @@unique([workOrderId, code])
+}
+
+model Signature {
+  id          String   @id @default(cuid())
+  workOrderId String
+  signerRole  String
+  signerName  String
+  signedAt    DateTime?
+  checksum    String?
+  createdAt   DateTime @default(now())
+
+  workOrder WorkOrder @relation(fields: [workOrderId], references: [id])
+
+  @@index([workOrderId, signerRole])
+}
+
+model Warehouse {
+  id        String   @id @default(cuid())
+  tenantId  String
+  code      String
+  name      String
+  regionId  String?
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant       Tenant             @relation(fields: [tenantId], references: [id])
+  stockLevels  StockLevel[]
+  reservations Reservation[]
+  movements    MaterialMovement[]
+
+  @@unique([tenantId, code])
+  @@index([tenantId, active])
+}
+
+model Material {
+  id           String   @id @default(cuid())
+  tenantId     String
+  sku          String
+  name         String
+  categoryCode String
+  unit         String
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  deletedAt    DateTime?
+
+  tenant             Tenant              @relation(fields: [tenantId], references: [id])
+  stockLevels        StockLevel[]
+  reservations       Reservation[]
+  movements          MaterialMovement[]
+  workOrderMaterials WorkOrderMaterial[]
+
+  @@unique([tenantId, sku])
+  @@index([tenantId, categoryCode])
+  @@index([tenantId, active])
+}
+
+model StockLevel {
+  id          String   @id @default(cuid())
+  warehouseId String
+  materialId  String
+  onHand      Decimal  @db.Decimal(14, 3)
+  reserved    Decimal  @db.Decimal(14, 3)
+  minLevel    Decimal  @db.Decimal(14, 3)
+  maxLevel    Decimal  @db.Decimal(14, 3)
+  updatedAt   DateTime @updatedAt
+
+  warehouse Warehouse @relation(fields: [warehouseId], references: [id])
+  material  Material  @relation(fields: [materialId], references: [id])
+
+  @@unique([warehouseId, materialId])
+  @@index([materialId])
+}
+
+model Reservation {
+  id          String   @id @default(cuid())
+  warehouseId String
+  materialId  String
+  workOrderId String
+  quantity    Decimal  @db.Decimal(14, 3)
+  expiresAt   DateTime
+  confirmedAt DateTime?
+  createdAt   DateTime @default(now())
+
+  warehouse Warehouse @relation(fields: [warehouseId], references: [id])
+  material  Material  @relation(fields: [materialId], references: [id])
+
+  @@index([warehouseId, materialId])
+  @@index([workOrderId])
+}
+
+model MaterialMovement {
+  id          String       @id @default(cuid())
+  warehouseId String
+  materialId  String
+  workOrderId String?
+  type        MovementType
+  quantity    Decimal      @db.Decimal(14, 3)
+  reason      String
+  idempotencyKey String    @unique
+  createdAt   DateTime     @default(now())
+
+  warehouse Warehouse @relation(fields: [warehouseId], references: [id])
+  material  Material  @relation(fields: [materialId], references: [id])
+
+  @@index([warehouseId, createdAt])
+  @@index([materialId, createdAt])
+  @@index([workOrderId])
+}
+
+model SLAEvent {
+  id          String   @id @default(cuid())
+  workOrderId String
+  profileCode String
+  dueAt       DateTime
+  breachedAt  DateTime?
+  escalatedAt DateTime?
+  state       String
+  createdAt   DateTime @default(now())
+
+  workOrder WorkOrder @relation(fields: [workOrderId], references: [id])
+
+  @@index([state, dueAt])
+  @@index([workOrderId])
+}
+
+model EmergencyEvent {
+  id          String   @id @default(cuid())
+  workOrderId String   @unique
+  triggeredAt DateTime @default(now())
+  acceptedAt  DateTime?
+  severity    Priority @default(CRITICAL)
+  passengerRisk Boolean @default(false)
+
+  workOrder WorkOrder @relation(fields: [workOrderId], references: [id])
+
+  @@index([triggeredAt, severity])
+}
+
+model Approval {
+  id          String         @id @default(cuid())
+  workOrderId String?
+  requesterId String
+  type        String
+  status      ApprovalStatus @default(PENDING)
+  payload     Json
+  decidedAt   DateTime?
+  createdAt   DateTime       @default(now())
+
+  workOrder WorkOrder?   @relation(fields: [workOrderId], references: [id])
+  requester IdentityUser @relation("ApprovalRequester", fields: [requesterId], references: [id])
+
+  @@index([status, createdAt])
+  @@index([workOrderId])
+}
+
+model MediaFile {
+  id            String      @id @default(cuid())
+  tenantId      String
+  workOrderId   String?
+  elevatorId    String?
+  kind          String
+  status        MediaStatus @default(LOCAL_PENDING)
+  s3Key         String?
+  checksum      String?
+  metadata      Json
+  createdAt     DateTime    @default(now())
+  processedAt   DateTime?
+
+  workOrder WorkOrder? @relation(fields: [workOrderId], references: [id])
+  elevator   Elevator?  @relation(fields: [elevatorId], references: [id])
+
+  @@index([tenantId, workOrderId])
+  @@index([tenantId, status, createdAt])
+  @@index([checksum])
+}
+
+model Notification {
+  id          String   @id @default(cuid())
+  tenantId    String
+  userId      String?
+  alertType   String
+  priority    Priority
+  status      String
+  payload     Json
+  createdAt   DateTime @default(now())
+  deliveredAt DateTime?
+  readAt      DateTime?
+
+  @@index([tenantId, userId, status])
+  @@index([tenantId, priority, createdAt])
+}
+
+model SyncOperation {
+  id             String     @id @default(cuid())
+  tenantId       String
+  workOrderId    String?
+  deviceId       String
+  operationType  String
+  idempotencyKey String     @unique
+  baseVersion    Int
+  localVersion   Int
+  status         SyncStatus @default(QUEUED)
+  payload        Json
+  conflict       Json?
+  createdAt      DateTime   @default(now())
+  appliedAt      DateTime?
+
+  workOrder WorkOrder? @relation(fields: [workOrderId], references: [id])
+
+  @@index([tenantId, deviceId, status])
+  @@index([tenantId, createdAt])
+}
+
+model AuditRecord {
+  id          String   @id @default(cuid())
+  tenantId    String
+  actorUserId String?
+  entityType  String
+  entityId    String
+  action      String
+  before      Json?
+  after       Json?
+  hash        String
+  previousHash String?
+  createdAt   DateTime @default(now())
+
+  tenant Tenant        @relation(fields: [tenantId], references: [id])
+  actor  IdentityUser? @relation(fields: [actorUserId], references: [id])
+
+  @@index([tenantId, entityType, entityId])
+  @@index([tenantId, createdAt])
+  @@unique([tenantId, hash])
+}
+
+model DomainEvent {
+  id          String            @id @default(cuid())
+  tenantId    String
+  aggregateId String
+  aggregateType String
+  eventType   String
+  payload     Json
+  status      DomainEventStatus @default(PENDING)
+  occurredAt  DateTime          @default(now())
+  publishedAt DateTime?
+  retryCount  Int               @default(0)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@index([status, occurredAt])
+  @@index([tenantId, aggregateType, aggregateId])
+}
+
+model OutboxMessage {
+  id          String            @id @default(cuid())
+  eventId     String            @unique
+  topic       String
+  payload     Json
+  status      DomainEventStatus @default(PENDING)
+  availableAt DateTime          @default(now())
+  lockedAt    DateTime?
+  createdAt   DateTime          @default(now())
+
+  @@index([status, availableAt])
+}
+
+model IdempotencyKey {
+  key        String   @id
+  tenantId   String
+  scope      String
+  response   Json?
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+
+  @@index([tenantId, scope])
+  @@index([expiresAt])
+}
+
+
+model IdentitySession {
+  id                 String                @id @default(cuid())
+  tenantId           String
+  userId             String
+  deviceId           String
+  status             IdentitySessionStatus @default(ACTIVE)
+  accessTokenHash    String
+  refreshFamilyId    String
+  ipAddress          String
+  userAgent          String
+  correlationId      String
+  deviceBound        Boolean               @default(true)
+  rotationCounter    Int                   @default(0)
+  lastSeenAt         DateTime              @default(now())
+  expiresAt          DateTime
+  refreshExpiresAt   DateTime
+  forcedLogoutReason String?
+  revokedAt          DateTime?
+  createdAt          DateTime              @default(now())
+  updatedAt          DateTime              @updatedAt
+
+  tenant          Tenant           @relation(fields: [tenantId], references: [id])
+  user            IdentityUser     @relation(fields: [userId], references: [id])
+  device          TrustedDevice    @relation(fields: [deviceId], references: [id])
+  refreshTokens   RefreshToken[]
+  offlineSessions OfflineSession[]
+  authAuditLogs   AuthAuditLog[]
+
+  @@index([tenantId, userId, status])
+  @@index([tenantId, deviceId, status])
+  @@index([tenantId, refreshFamilyId])
+  @@index([tenantId, expiresAt])
+}
+
+model RefreshToken {
+  id             String    @id @default(cuid())
+  tenantId       String
+  userId         String
+  sessionId      String
+  familyId       String
+  tokenHash      String    @unique
+  previousHash   String?
+  rotationNumber Int       @default(1)
+  deviceId       String
+  issuedAt       DateTime  @default(now())
+  expiresAt      DateTime
+  usedAt         DateTime?
+  revokedAt      DateTime?
+  reuseDetectedAt DateTime?
+
+  tenant  Tenant          @relation(fields: [tenantId], references: [id])
+  user    IdentityUser    @relation(fields: [userId], references: [id])
+  session IdentitySession @relation(fields: [sessionId], references: [id])
+  device  TrustedDevice   @relation(fields: [deviceId], references: [id])
+
+  @@index([tenantId, userId, familyId])
+  @@index([tenantId, sessionId, revokedAt])
+  @@index([tenantId, expiresAt])
+}
+
+model TrustedDevice {
+  id              String            @id @default(cuid())
+  tenantId        String
+  userId          String
+  label           String
+  platform        String
+  fingerprintHash String
+  trustStatus     DeviceTrustStatus @default(PENDING)
+  offlineCapable  Boolean           @default(false)
+  lastSeenAt      DateTime?
+  registeredAt    DateTime          @default(now())
+  revokedAt       DateTime?
+  lostAt          DateTime?
+  metadata        Json?
+
+  tenant          Tenant            @relation(fields: [tenantId], references: [id])
+  user            IdentityUser      @relation(fields: [userId], references: [id])
+  sessions        IdentitySession[]
+  refreshTokens   RefreshToken[]
+  offlineSessions OfflineSession[]
+  securityEvents  SecurityEvent[]
+  credentials     WebAuthnCredential[]
+
+  @@unique([tenantId, fingerprintHash])
+  @@index([tenantId, userId, trustStatus])
+  @@index([tenantId, lastSeenAt])
+}
+
+model LoginAttempt {
+  id          String              @id @default(cuid())
+  tenantId    String
+  userId      String?
+  login       String
+  outcome     LoginAttemptOutcome
+  ipAddress   String
+  userAgent   String?
+  reason      String?
+  attemptedAt DateTime            @default(now())
+
+  tenant Tenant        @relation(fields: [tenantId], references: [id])
+  user   IdentityUser? @relation(fields: [userId], references: [id])
+
+  @@index([tenantId, login, attemptedAt])
+  @@index([tenantId, ipAddress, attemptedAt])
+  @@index([tenantId, outcome, attemptedAt])
+}
+
+model SecurityEvent {
+  id            String            @id @default(cuid())
+  tenantId      String
+  userId        String?
+  deviceId      String?
+  sessionId     String?
+  eventType     SecurityEventType
+  severity      SecuritySeverity
+  message       String
+  metadata      Json?
+  immutableHash String
+  previousHash  String?
+  occurredAt    DateTime          @default(now())
+
+  tenant Tenant         @relation(fields: [tenantId], references: [id])
+  user   IdentityUser?  @relation(fields: [userId], references: [id])
+  device TrustedDevice? @relation(fields: [deviceId], references: [id])
+
+  @@unique([tenantId, immutableHash])
+  @@index([tenantId, eventType, occurredAt])
+  @@index([tenantId, severity, occurredAt])
+  @@index([tenantId, userId, occurredAt])
+}
+
+model PasswordResetRequest {
+  id          String    @id @default(cuid())
+  tenantId    String
+  userId      String
+  tokenHash   String    @unique
+  requestedIp String
+  expiresAt   DateTime
+  usedAt      DateTime?
+  revokedAt   DateTime?
+  createdAt   DateTime  @default(now())
+
+  tenant Tenant       @relation(fields: [tenantId], references: [id])
+  user   IdentityUser @relation(fields: [userId], references: [id])
+
+  @@index([tenantId, userId, createdAt])
+  @@index([tenantId, expiresAt])
+}
+
+model AuthAuditLog {
+  id            String   @id @default(cuid())
+  tenantId      String
+  actorUserId   String?
+  targetUserId  String?
+  sessionId     String?
+  action        String
+  before        Json?
+  after         Json?
+  requestMeta   Json?
+  correlationId String
+  hash          String
+  previousHash  String?
+  createdAt     DateTime @default(now())
+
+  tenant  Tenant           @relation(fields: [tenantId], references: [id])
+  actor   IdentityUser?    @relation("AuthAuditActor", fields: [actorUserId], references: [id])
+  session IdentitySession? @relation(fields: [sessionId], references: [id])
+
+  @@unique([tenantId, hash])
+  @@index([tenantId, actorUserId, createdAt])
+  @@index([tenantId, targetUserId, createdAt])
+  @@index([tenantId, correlationId])
+}
+
+model OfflineSession {
+  id                 String    @id @default(cuid())
+  tenantId           String
+  userId             String
+  sessionId          String
+  deviceId           String
+  encryptedGrantHash String
+  roleSnapshot       Json
+  scopeSnapshot      Json
+  operationCursor    String?
+  issuedAt           DateTime  @default(now())
+  offlineUntil       DateTime
+  reconnectedAt      DateTime?
+  revokedAt          DateTime?
+
+  tenant  Tenant          @relation(fields: [tenantId], references: [id])
+  user    IdentityUser    @relation(fields: [userId], references: [id])
+  session IdentitySession @relation(fields: [sessionId], references: [id])
+  device  TrustedDevice   @relation(fields: [deviceId], references: [id])
+
+  @@index([tenantId, userId, offlineUntil])
+  @@index([tenantId, deviceId, revokedAt])
+  @@index([tenantId, sessionId])
+}
+
+model WebAuthnCredential {
+  id              String    @id @default(cuid())
+  tenantId        String
+  userId          String
+  deviceId        String?
+  credentialId    String    @unique
+  publicKey       String
+  signCount       Int       @default(0)
+  transports      String[]
+  backedUp        Boolean   @default(false)
+  createdAt       DateTime  @default(now())
+  lastUsedAt      DateTime?
+  revokedAt       DateTime?
+
+  user   IdentityUser   @relation(fields: [userId], references: [id])
+  device TrustedDevice? @relation(fields: [deviceId], references: [id])
+
+  @@index([tenantId, userId, revokedAt])
+  @@index([tenantId, deviceId])
+}
+
+
+model GeoZone {
+  id                   String   @id @default(cuid())
+  tenantId             String
+  regionId             String
+  code                 String
+  name                 String
+  polygon              Json
+  active               Boolean  @default(true)
+  averageEtaMinutes    Int      @default(0)
+  activeJobs           Int      @default(0)
+  availableTechnicians Int      @default(0)
+  slaRiskCount         Int      @default(0)
+  updatedAt            DateTime @updatedAt
+
+  tenant              Tenant               @relation(fields: [tenantId], references: [id])
+  dispatchQueues      DispatchQueue[]
+  technicianSchedules TechnicianSchedule[]
+  routePlans          RoutePlan[]
+  travelFrom          TravelEstimate[]      @relation("TravelFromZone")
+  travelTo            TravelEstimate[]      @relation("TravelToZone")
+
+  @@unique([tenantId, code])
+  @@index([tenantId, regionId, active])
+  @@index([tenantId, slaRiskCount])
+}
+
+model DispatchQueue {
+  id              String              @id @default(cuid())
+  tenantId        String
+  workOrderId     String              @unique
+  geoZoneId       String
+  priority        DispatchPriority
+  status          DispatchQueueStatus @default(NEW)
+  requiredSkills  String[]
+  elevatorModel   String
+  controller      String?
+  passengerRisk   Boolean             @default(false)
+  receivedAt      DateTime            @default(now())
+  triagedAt       DateTime?
+  assignedAt      DateTime?
+  scheduleVersion Int                 @default(1)
+  metadata        Json?
+
+  tenant              Tenant                @relation(fields: [tenantId], references: [id])
+  workOrder           WorkOrder             @relation(fields: [workOrderId], references: [id])
+  geoZone             GeoZone               @relation(fields: [geoZoneId], references: [id])
+  slaWindow           DispatchSLAWindow?
+  assignments         DispatchAssignment[]
+  emergencyDispatch   EmergencyDispatch?
+  scheduleConflicts   ScheduleConflict[]
+  dispatchEvents      DispatchEventLog[]
+  routeStops          RouteStop[]
+
+  @@index([tenantId, priority, status])
+  @@index([tenantId, geoZoneId, status])
+  @@index([tenantId, receivedAt])
+  @@index([tenantId, scheduleVersion])
+}
+
+model DispatchSLAWindow {
+  id                String   @id @default(cuid())
+  dispatchQueueId   String   @unique
+  responseDueAt     DateTime
+  completionDueAt   DateTime
+  minutesRemaining  Int
+  breachProbability Int
+  escalationLevel   Int      @default(0)
+  timerStartedAt    DateTime @default(now())
+  breachedAt        DateTime?
+  updatedAt         DateTime @updatedAt
+
+  dispatchQueue DispatchQueue @relation(fields: [dispatchQueueId], references: [id])
+
+  @@index([responseDueAt, breachProbability])
+  @@index([escalationLevel, responseDueAt])
+}
+
+model TechnicianSchedule {
+  id                  String                       @id @default(cuid())
+  tenantId            String
+  technicianId        String
+  geoZoneId           String
+  availability        TechnicianAvailabilityStatus @default(AVAILABLE)
+  loadPercent         Int                          @default(0)
+  activeAssignments   Int                          @default(0)
+  currentAddress      String?
+  scheduleDate        DateTime
+  scheduleVersion     Int                          @default(1)
+  updatedAt           DateTime                     @updatedAt
+
+  tenant      Tenant               @relation(fields: [tenantId], references: [id])
+  technician  Technician           @relation(fields: [technicianId], references: [id])
+  geoZone     GeoZone              @relation(fields: [geoZoneId], references: [id])
+  assignments DispatchAssignment[]
+
+  @@index([tenantId, scheduleDate, availability])
+  @@index([tenantId, technicianId, scheduleDate])
+  @@index([tenantId, geoZoneId, availability])
+}
+
+model DispatchShift {
+  id              String            @id @default(cuid())
+  tenantId        String
+  technicianId    String
+  kind            DispatchShiftKind
+  startsAt        DateTime
+  endsAt          DateTime
+  zoneIds         String[]
+  overtimeMinutes Int               @default(0)
+  onCall          Boolean           @default(false)
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  tenant     Tenant     @relation(fields: [tenantId], references: [id])
+  technician Technician @relation(fields: [technicianId], references: [id])
+
+  @@index([tenantId, startsAt, endsAt])
+  @@index([tenantId, technicianId, startsAt])
+  @@index([tenantId, onCall, startsAt])
+}
+
+model SkillMatrixProfile {
+  id                    String   @id @default(cuid())
+  technicianId           String   @unique
+  elevatorTypes          String[]
+  brands                 String[]
+  controllers            String[]
+  certifications         String[]
+  emergencyAuthorized    Boolean  @default(false)
+  scoreBySkill           Json
+  updatedAt              DateTime @updatedAt
+
+  @@index([emergencyAuthorized])
+}
+
+model DispatchAssignment {
+  id                   String   @id @default(cuid())
+  tenantId             String
+  dispatchQueueId      String
+  workOrderId          String
+  technicianId         String
+  technicianScheduleId String?
+  confidence           Int
+  score                Int
+  routeImpactMinutes   Int
+  workloadAfterPercent Int
+  emergencyOverride    Boolean  @default(false)
+  status               String
+  rationale            Json
+  confirmedByUserId    String?
+  confirmedAt          DateTime?
+  acceptedAt           DateTime?
+  rejectedAt           DateTime?
+  createdAt            DateTime @default(now())
+
+  tenant             Tenant              @relation(fields: [tenantId], references: [id])
+  dispatchQueue      DispatchQueue       @relation(fields: [dispatchQueueId], references: [id])
+  workOrder          WorkOrder           @relation(fields: [workOrderId], references: [id])
+  technician         Technician          @relation(fields: [technicianId], references: [id])
+  technicianSchedule TechnicianSchedule? @relation(fields: [technicianScheduleId], references: [id])
+
+  @@index([tenantId, dispatchQueueId, status])
+  @@index([tenantId, technicianId, createdAt])
+  @@index([tenantId, emergencyOverride, createdAt])
+}
+
+model RoutePlan {
+  id                 String   @id @default(cuid())
+  tenantId           String
+  technicianId       String
+  geoZoneId          String
+  scheduleVersion    Int
+  totalTravelMinutes Int
+  totalWorkMinutes   Int
+  routeRisk          String
+  optimizationMeta   Json?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  tenant     Tenant      @relation(fields: [tenantId], references: [id])
+  technician Technician  @relation(fields: [technicianId], references: [id])
+  geoZone    GeoZone     @relation(fields: [geoZoneId], references: [id])
+  stops      RouteStop[]
+
+  @@index([tenantId, technicianId, scheduleVersion])
+  @@index([tenantId, geoZoneId, routeRisk])
+}
+
+model RouteStop {
+  id              String   @id @default(cuid())
+  routePlanId     String
+  dispatchQueueId String
+  sequence        Int
+  eta             DateTime
+  travelMinutes   Int
+  slaImpactMinutes Int
+
+  routePlan     RoutePlan     @relation(fields: [routePlanId], references: [id])
+  dispatchQueue DispatchQueue @relation(fields: [dispatchQueueId], references: [id])
+
+  @@unique([routePlanId, sequence])
+  @@index([dispatchQueueId])
+}
+
+model TravelEstimate {
+  id             String   @id @default(cuid())
+  fromGeoZoneId  String
+  toGeoZoneId    String
+  minutes        Int
+  traffic        String
+  confidence     Int
+  provider       String
+  calculatedAt   DateTime @default(now())
+
+  fromGeoZone GeoZone @relation("TravelFromZone", fields: [fromGeoZoneId], references: [id])
+  toGeoZone   GeoZone @relation("TravelToZone", fields: [toGeoZoneId], references: [id])
+
+  @@unique([fromGeoZoneId, toGeoZoneId, provider])
+  @@index([calculatedAt])
+}
+
+model ScheduleConflict {
+  id              String               @id @default(cuid())
+  tenantId        String
+  dispatchQueueId String
+  technicianId    String?
+  type            ScheduleConflictType
+  severity        SecuritySeverity
+  message         String
+  resolution      String
+  resolvedAt      DateTime?
+  createdAt       DateTime             @default(now())
+
+  tenant        Tenant        @relation(fields: [tenantId], references: [id])
+  dispatchQueue DispatchQueue @relation(fields: [dispatchQueueId], references: [id])
+
+  @@index([tenantId, type, createdAt])
+  @@index([tenantId, dispatchQueueId, resolvedAt])
+}
+
+model EmergencyDispatch {
+  id                    String   @id @default(cuid())
+  tenantId              String
+  dispatchQueueId       String   @unique
+  workOrderId           String   @unique
+  escalationLevel       Int
+  passengerRisk         Boolean  @default(false)
+  nearestTechnicianId   String
+  scheduleRebuildRequired Boolean @default(true)
+  slaTimerStartedAt     DateTime
+  resolvedAt            DateTime?
+  createdAt             DateTime @default(now())
+
+  tenant        Tenant        @relation(fields: [tenantId], references: [id])
+  dispatchQueue DispatchQueue @relation(fields: [dispatchQueueId], references: [id])
+  workOrder     WorkOrder     @relation(fields: [workOrderId], references: [id])
+
+  @@index([tenantId, escalationLevel, createdAt])
+  @@index([tenantId, passengerRisk, resolvedAt])
+}
+
+model DispatchEventLog {
+  id              String            @id @default(cuid())
+  tenantId        String
+  dispatchQueueId String?
+  technicianId    String?
+  eventType       DispatchEventType
+  message         String
+  payload         Json?
+  auditHash       String
+  previousHash    String?
+  occurredAt      DateTime          @default(now())
+
+  tenant        Tenant         @relation(fields: [tenantId], references: [id])
+  dispatchQueue DispatchQueue? @relation(fields: [dispatchQueueId], references: [id])
+
+  @@unique([tenantId, auditHash])
+  @@index([tenantId, eventType, occurredAt])
+  @@index([tenantId, dispatchQueueId, occurredAt])
+}
