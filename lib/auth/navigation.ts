@@ -80,6 +80,14 @@ export const GLOBAL_NAVIGATION: NavItem[] = [
     mobile: true,
   },
   {
+    href: "/emergency",
+    label: "Emergency",
+    description: "Аварийный command center",
+    permission: "emergency:read",
+    roles: ["mechanic", "seniorMechanic", "dispatcher", "emergencyCoordinator", "supervisor", "director", "administrator"],
+    mobile: true,
+  },
+  {
     href: "/maps",
     label: "Geo Ops",
     description: "Карта, маршруты, ETA, геозоны",

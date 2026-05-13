@@ -219,6 +219,135 @@ enum GeoAuditAction {
   DEPARTURE_DETECTED
 }
 
+enum IncidentPriority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum IncidentStatus {
+  NEW
+  TRIAGED
+  DISPATCHING
+  ACCEPTED
+  EN_ROUTE
+  ON_SITE
+  STABILIZED
+  RESOLVED
+  COMMUNICATION_RISK
+  SLA_RISK
+  ESCALATED
+  CANCELLED
+}
+
+enum EmergencyScenario {
+  PASSENGER_TRAPPED
+  SLA_RISK
+  LOST_CONTACT
+  EQUIPMENT_FIRE
+  CRITICAL_SHUTDOWN
+}
+
+enum EscalationLevel {
+  DISPATCHER
+  SUPERVISOR
+  DIRECTOR
+  EMERGENCY_OVERRIDE
+}
+
+enum EscalationStepStatus {
+  PENDING
+  NOTIFIED
+  ACKNOWLEDGED
+  OVERRIDDEN
+  EXPIRED
+}
+
+enum EmergencyAssignmentStatus {
+  SUGGESTED
+  PUSH_SENT
+  ACCEPTED
+  EN_ROUTE
+  ARRIVED
+  REASSIGNED
+  FAILED
+}
+
+enum EmergencyResponsePhase {
+  INTAKE
+  DISPATCH
+  TRAVEL
+  RESCUE
+  STABILIZATION
+  POST_INCIDENT
+}
+
+enum SLAIncidentTimerState {
+  HEALTHY
+  WARNING
+  BREACH_PREDICTED
+  BREACHED
+  OVERRIDE_ACTIVE
+}
+
+enum CriticalAlertDelivery {
+  QUEUED
+  DELIVERED
+  ACKNOWLEDGED
+  FAILED
+  FALLBACK_SENT
+}
+
+enum EmergencyCommunicationChannel {
+  PUSH
+  WEBSOCKET
+  SMS
+  TELEGRAM
+  VOICE_CALL
+}
+
+enum IncidentTimelineType {
+  DISPATCH
+  ARRIVAL
+  COMMUNICATION
+  ESCALATION
+  STATUS
+  GEO
+  SLA
+}
+
+enum EmergencyQueueStatus {
+  OPEN
+  SATURATED
+  DEGRADED
+  CLOSED
+}
+
+enum EmergencyGeoZoneRisk {
+  NORMAL
+  DENSE_CITY
+  TRAFFIC_BLOCKED
+  LIMITED_COVERAGE
+}
+
+enum IncidentCommunicationStatus {
+  ONLINE
+  DELAYED
+  LOST_CONTACT
+  FALLBACK_VOICE
+}
+
+enum IncidentAuditAction {
+  CREATED
+  SLA_TIMER_STARTED
+  ASSIGNMENT_DECISION
+  ESCALATION
+  OVERRIDE
+  COMMUNICATION_FAILURE
+  RESOLVED
+}
+
 model Tenant {
   id        String   @id @default(cuid())
   name      String
@@ -262,6 +391,17 @@ model Tenant {
   routeHistories        RouteHistory[]
   geoAuditLogs          GeoAuditLog[]
   emergencyZones        EmergencyZone[]
+  emergencyIncidents    EmergencyIncident[]
+  emergencyQueues       EmergencyQueue[]
+  emergencyAssignments  EmergencyAssignment[]
+  slaIncidentTimers     SLAIncidentTimer[]
+  escalationChains      EscalationChain[]
+  emergencyResponses    EmergencyResponse[]
+  criticalAlerts        CriticalAlert[]
+  incidentTimelines     IncidentTimeline[]
+  emergencyGeoZones     EmergencyGeoZone[]
+  incidentCommunications IncidentCommunication[]
+  incidentAuditLogs     IncidentAuditLog[]
 
   @@index([slug])
 }
@@ -1264,6 +1404,7 @@ model EmergencyDispatch {
   tenantId              String
   dispatchQueueId       String   @unique
   workOrderId           String   @unique
+  emergencyIncidentId   String?
   escalationLevel       Int
   passengerRisk         Boolean  @default(false)
   nearestTechnicianId   String
@@ -1275,7 +1416,9 @@ model EmergencyDispatch {
   tenant        Tenant        @relation(fields: [tenantId], references: [id])
   dispatchQueue DispatchQueue @relation(fields: [dispatchQueueId], references: [id])
   workOrder     WorkOrder     @relation(fields: [workOrderId], references: [id])
+  emergencyIncident EmergencyIncident? @relation(fields: [emergencyIncidentId], references: [id])
 
+  @@index([tenantId, emergencyIncidentId, createdAt])
   @@index([tenantId, escalationLevel, createdAt])
   @@index([tenantId, passengerRisk, resolvedAt])
 }
@@ -1564,5 +1707,250 @@ model GeoAuditLog {
   @@unique([tenantId, hash])
   @@index([tenantId, action, createdAt])
   @@index([tenantId, actorUserId, createdAt])
+  @@index([tenantId, correlationId])
+}
+
+
+model EmergencyIncident {
+  id                  String            @id @default(cuid())
+  tenantId            String
+  emergencyQueueId    String?
+  workOrderId         String?
+  number              String
+  priority            IncidentPriority  @default(CRITICAL)
+  status              IncidentStatus    @default(NEW)
+  scenario            EmergencyScenario
+  title               String
+  description         String?
+  objectName          String
+  elevatorLabel       String?
+  address             String
+  humanSafety         Boolean           @default(false)
+  passengerCount      Int               @default(0)
+  responseTargetMinutes Int
+  etaMinutes          Int?
+  breachProbability   Int               @default(0)
+  escalationLevel     EscalationLevel   @default(DISPATCHER)
+  commandOwnerUserId  String?
+  zoneId              String?
+  resolvedAt          DateTime?
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+
+  tenant          Tenant                   @relation(fields: [tenantId], references: [id])
+  emergencyQueue  EmergencyQueue?          @relation(fields: [emergencyQueueId], references: [id])
+  dispatches      EmergencyDispatch[]
+  assignments     EmergencyAssignment[]
+  timers          SLAIncidentTimer[]
+  escalationChains EscalationChain[]
+  responses       EmergencyResponse[]
+  alerts          CriticalAlert[]
+  timeline        IncidentTimeline[]
+  communications  IncidentCommunication[]
+  auditLogs       IncidentAuditLog[]
+
+  @@unique([tenantId, number])
+  @@index([tenantId, priority, status, createdAt])
+  @@index([tenantId, escalationLevel, status])
+  @@index([tenantId, humanSafety, createdAt])
+  @@index([tenantId, zoneId, status])
+}
+
+model EmergencyQueue {
+  id               String               @id @default(cuid())
+  tenantId         String
+  name             String
+  priority         IncidentPriority
+  status           EmergencyQueueStatus @default(OPEN)
+  concurrencyLimit Int
+  redisStream      String
+  websocketTopic   String
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+
+  tenant    Tenant              @relation(fields: [tenantId], references: [id])
+  incidents EmergencyIncident[]
+
+  @@unique([tenantId, redisStream])
+  @@index([tenantId, priority, status])
+}
+
+model EmergencyAssignment {
+  id                  String                    @id @default(cuid())
+  tenantId            String
+  incidentId          String
+  mechanicId          String
+  status              EmergencyAssignmentStatus @default(SUGGESTED)
+  proximityMinutes    Int
+  certificationMatch  Int
+  readinessScore      Int
+  geoAvailability     String
+  shiftState          String
+  fastestRouteKm      Decimal                   @db.Decimal(10, 2)
+  acceptedAt          DateTime?
+  arrivedAt           DateTime?
+  reassignedAt        DateTime?
+  createdAt           DateTime                  @default(now())
+
+  tenant   Tenant            @relation(fields: [tenantId], references: [id])
+  incident EmergencyIncident @relation(fields: [incidentId], references: [id])
+
+  @@index([tenantId, incidentId, createdAt])
+  @@index([tenantId, mechanicId, status])
+  @@index([tenantId, status, createdAt])
+}
+
+model SLAIncidentTimer {
+  id                      String                 @id @default(cuid())
+  tenantId                String
+  incidentId              String
+  targetMinutes           Int
+  elapsedMinutes          Int                    @default(0)
+  remainingMinutes        Int
+  breachPredictionMinutes Int
+  warningThresholdMinutes Int
+  supervisorThresholdMinutes Int
+  directorThresholdMinutes Int
+  state                   SLAIncidentTimerState  @default(HEALTHY)
+  startedAt               DateTime               @default(now())
+  breachedAt              DateTime?
+  overrideReason          String?
+
+  tenant   Tenant            @relation(fields: [tenantId], references: [id])
+  incident EmergencyIncident @relation(fields: [incidentId], references: [id])
+
+  @@index([tenantId, incidentId, startedAt])
+  @@index([tenantId, state, remainingMinutes])
+}
+
+model EscalationChain {
+  id              String          @id @default(cuid())
+  tenantId        String
+  incidentId      String
+  currentLevel    EscalationLevel @default(DISPATCHER)
+  autoEscalation  Boolean         @default(true)
+  steps           Json
+  acknowledgedAt  DateTime?
+  createdAt       DateTime        @default(now())
+
+  tenant   Tenant            @relation(fields: [tenantId], references: [id])
+  incident EmergencyIncident @relation(fields: [incidentId], references: [id])
+
+  @@index([tenantId, incidentId, createdAt])
+  @@index([tenantId, currentLevel, autoEscalation])
+}
+
+model EmergencyResponse {
+  id              String                 @id @default(cuid())
+  tenantId        String
+  incidentId      String
+  phase           EmergencyResponsePhase @default(INTAKE)
+  commandOwner    String
+  activePlaybook  String
+  nextAction      String
+  safetyChecklist Json
+  createdAt       DateTime               @default(now())
+  updatedAt       DateTime               @updatedAt
+
+  tenant   Tenant            @relation(fields: [tenantId], references: [id])
+  incident EmergencyIncident @relation(fields: [incidentId], references: [id])
+
+  @@index([tenantId, incidentId, phase])
+}
+
+model CriticalAlert {
+  id            String                       @id @default(cuid())
+  tenantId      String
+  incidentId    String
+  severity      IncidentPriority
+  channel       EmergencyCommunicationChannel
+  recipientRole String
+  delivery      CriticalAlertDelivery        @default(QUEUED)
+  message       String
+  deliveredAt   DateTime?
+  acknowledgedAt DateTime?
+  createdAt     DateTime                     @default(now())
+
+  tenant   Tenant            @relation(fields: [tenantId], references: [id])
+  incident EmergencyIncident @relation(fields: [incidentId], references: [id])
+
+  @@index([tenantId, incidentId, createdAt])
+  @@index([tenantId, delivery, createdAt])
+  @@index([tenantId, severity, delivery])
+}
+
+model IncidentTimeline {
+  id          String               @id @default(cuid())
+  tenantId    String
+  incidentId  String
+  type        IncidentTimelineType
+  label       String
+  actor       String
+  payload     Json?
+  critical    Boolean              @default(false)
+  occurredAt  DateTime             @default(now())
+
+  tenant   Tenant            @relation(fields: [tenantId], references: [id])
+  incident EmergencyIncident @relation(fields: [incidentId], references: [id])
+
+  @@index([tenantId, incidentId, occurredAt])
+  @@index([tenantId, type, occurredAt])
+}
+
+model EmergencyGeoZone {
+  id               String               @id @default(cuid())
+  tenantId         String
+  name             String
+  risk             EmergencyGeoZoneRisk @default(NORMAL)
+  activeIncidents  Int                  @default(0)
+  nearestMechanics Int                  @default(0)
+  avgEtaMinutes    Int                  @default(0)
+  polygon          Json?
+  updatedAt        DateTime             @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@unique([tenantId, name])
+  @@index([tenantId, risk, activeIncidents])
+}
+
+model IncidentCommunication {
+  id               String                      @id @default(cuid())
+  tenantId         String
+  incidentId       String
+  mechanicId       String?
+  lastContactAt    DateTime?
+  status           IncidentCommunicationStatus @default(ONLINE)
+  failedPushCount  Int                         @default(0)
+  fallbackChannels EmergencyCommunicationChannel[]
+  createdAt        DateTime                    @default(now())
+  updatedAt        DateTime                    @updatedAt
+
+  tenant   Tenant            @relation(fields: [tenantId], references: [id])
+  incident EmergencyIncident @relation(fields: [incidentId], references: [id])
+
+  @@index([tenantId, incidentId, status])
+  @@index([tenantId, mechanicId, status])
+}
+
+model IncidentAuditLog {
+  id            String              @id @default(cuid())
+  tenantId      String
+  incidentId    String
+  action        IncidentAuditAction
+  actor         String
+  before        Json?
+  after         Json?
+  correlationId String
+  hash          String
+  previousHash  String?
+  occurredAt    DateTime            @default(now())
+
+  tenant   Tenant            @relation(fields: [tenantId], references: [id])
+  incident EmergencyIncident @relation(fields: [incidentId], references: [id])
+
+  @@unique([tenantId, hash])
+  @@index([tenantId, incidentId, occurredAt])
+  @@index([tenantId, action, occurredAt])
   @@index([tenantId, correlationId])
 }
