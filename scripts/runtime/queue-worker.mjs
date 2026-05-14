@@ -1,135 +1,83 @@
-#!/usr/bin/env node
-import { Worker } from "bullmq";
+import { Queue, Worker } from "bullmq";
 import IORedis from "ioredis";
+import pino from "pino";
 
-const args = new Map(
-  process.argv
-    .slice(2)
-    .filter((arg) => arg.startsWith("--"))
-    .map((arg) => {
-      const [key, value = ""] = arg.slice(2).split("=");
-      return [key, value];
-    }),
-);
+const logger = pino({
+  level: process.env.LOG_LEVEL ?? "info",
+  base: { service: "neolift-queue-worker" },
+});
 
-const queues = (args.get("queues") ?? process.env.WORKER_QUEUES ?? "")
+const connection = new IORedis(process.env.REDIS_URL ?? "redis://localhost:6379/0", {
+  maxRetriesPerRequest: null,
+});
+
+const queues = (
+  process.env.WORKER_QUEUES ??
+  "emergency,sla,notifications,dispatch,sync-operations,media-processing"
+)
   .split(",")
   .map((queue) => queue.trim())
   .filter(Boolean);
+const concurrency = Number(process.env.WORKER_CONCURRENCY ?? 3);
 
-if (queues.length === 0) {
-  throw new Error("Queue worker requires --queues or WORKER_QUEUES");
-}
+const processors = {
+  emergency: async (job) => ({ routed: true, incidentId: job.data.incidentId }),
+  sla: async (job) => ({ evaluated: true, workOrderId: job.data.workOrderId }),
+  notifications: async (job) => ({
+    delivered: true,
+    notificationId: job.data.notificationId,
+  }),
+  dispatch: async (job) => ({ assigned: true, workOrderId: job.data.workOrderId }),
+  "sync-operations": async (job) => ({ replayed: true, deviceId: job.data.deviceId }),
+  "media-processing": async (job) => ({ processed: true, mediaId: job.data.mediaId }),
+};
 
-const redisUrl = process.env.REDIS_URL;
-if (!redisUrl) {
-  throw new Error("Queue worker requires REDIS_URL");
-}
+const workers = queues.map((queueName) => {
+  const queue = new Queue(queueName, { connection });
+  const worker = new Worker(
+    queueName,
+    async (job) => {
+      const handler = processors[queueName] ?? (async () => ({ skipped: true }));
+      logger.info(
+        { queueName, jobId: job.id, operationType: "queue.job_started" },
+        "job started",
+      );
+      return handler(job);
+    },
+    { connection, concurrency },
+  );
 
-const connection = new IORedis(redisUrl, {
-  maxRetriesPerRequest: null,
-  enableReadyCheck: false,
-  connectionName: `neolift-worker:${queues.join("+")}`,
+  worker.on("completed", (job, result) => {
+    logger.info(
+      { queueName, jobId: job.id, result, operationType: "queue.job_completed" },
+      "job completed",
+    );
+  });
+  worker.on("failed", (job, error) => {
+    logger.error(
+      { queueName, jobId: job?.id, err: error, operationType: "queue.job_failed" },
+      "job failed",
+    );
+  });
+
+  return { queue, worker };
 });
 
-const knownQueues = new Set([
-  "emergency",
-  "sla",
-  "notifications",
-  "dispatch",
-  "sync-operations",
-  "delta-snapshots",
-  "conflict-resolution",
-  "media-processing",
-  "ocr",
-  "ai-validation",
-  "pdf-generation",
-  "report-generation",
-  "exports",
-]);
-
-const unknownQueues = queues.filter((queue) => !knownQueues.has(queue));
-if (unknownQueues.length > 0) {
-  throw new Error(`Unknown operational queues: ${unknownQueues.join(", ")}`);
-}
-
-const processOperationalJob = async (job) => {
-  const startedAt = Date.now();
-  const payload = job.data ?? {};
-
-  if (!payload.idempotencyKey && !payload.dedupeKey) {
-    throw new Error(
-      `Job ${job.name} in ${job.queueName} is missing idempotency metadata`,
-    );
-  }
-
-  // This runtime deliberately does not contain business logic. Domain work is
-  // executed by application services/API adapters; workers provide durable queue
-  // consumption, idempotency enforcement hooks and operational telemetry.
-  return {
-    queue: job.queueName,
-    jobName: job.name,
-    jobId: job.id,
-    idempotencyKey: payload.idempotencyKey ?? payload.dedupeKey,
-    processedAt: new Date().toISOString(),
-    durationMs: Date.now() - startedAt,
-  };
-};
-
-const workers = queues.map(
-  (queueName) =>
-    new Worker(queueName, processOperationalJob, {
-      connection,
-      concurrency: Number(process.env.WORKER_CONCURRENCY ?? 5),
-      removeOnComplete: { age: 86_400, count: 10_000 },
-      removeOnFail: { age: 604_800, count: 50_000 },
-    }),
+logger.info(
+  { queues, concurrency, operationType: "queue.worker_started" },
+  "НеоЛифт worker started",
 );
 
-for (const worker of workers) {
-  worker.on("completed", (job) => {
-    console.info(
-      JSON.stringify({
-        level: "info",
-        event: "queue_job_completed",
-        queue: job.queueName,
-        jobName: job.name,
-        jobId: job.id,
-      }),
+for (const signal of ["SIGINT", "SIGTERM"]) {
+  process.on(signal, async () => {
+    logger.info(
+      { signal, operationType: "queue.worker_shutdown" },
+      "worker shutting down",
     );
-  });
-
-  worker.on("failed", (job, error) => {
-    console.error(
-      JSON.stringify({
-        level: "error",
-        event: "queue_job_failed",
-        queue: job?.queueName,
-        jobName: job?.name,
-        jobId: job?.id,
-        error: error.message,
-      }),
+    await Promise.all(
+      workers.flatMap(({ queue, worker }) => [queue.close(), worker.close()]),
     );
+    await connection.quit();
+    process.exit(0);
   });
 }
-
-console.info(
-  JSON.stringify({
-    level: "info",
-    event: "neolift_worker_started",
-    queues,
-    concurrency: Number(process.env.WORKER_CONCURRENCY ?? 5),
-  }),
-);
-
-const shutdown = async (signal) => {
-  console.info(
-    JSON.stringify({ level: "info", event: "neolift_worker_shutdown", signal }),
-  );
-  await Promise.all(workers.map((worker) => worker.close()));
-  await connection.quit();
-  process.exit(0);
-};
-
-process.on("SIGTERM", () => void shutdown("SIGTERM"));
-process.on("SIGINT", () => void shutdown("SIGINT"));

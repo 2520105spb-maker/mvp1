@@ -6,8 +6,11 @@ const PUBLIC_ROUTES = ["/login", "/manifest.webmanifest", "/sw.js"];
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
-  if (PUBLIC_ROUTES.some((route) => pathname.startsWith(route)) || pathname.startsWith("/_next")) {
-    return NextResponse.next();
+  if (
+    PUBLIC_ROUTES.some((route) => pathname.startsWith(route)) ||
+    pathname.startsWith("/_next")
+  ) {
+    return secureResponse(NextResponse.next(), request);
   }
 
   const accessToken = request.cookies.get("neo_access_token")?.value;
@@ -16,7 +19,7 @@ export function middleware(request: NextRequest) {
   if (!accessToken || !role) {
     const loginUrl = new URL("/login", request.url);
     loginUrl.searchParams.set("returnTo", pathname);
-    return NextResponse.redirect(loginUrl);
+    return secureResponse(NextResponse.redirect(loginUrl), request);
   }
 
   const requiredPermission = Object.entries(ROUTE_PERMISSIONS)
@@ -24,10 +27,30 @@ export function middleware(request: NextRequest) {
     .find(([route]) => pathname.startsWith(route))?.[1];
 
   if (requiredPermission && !ROLE_PERMISSIONS[role]?.includes(requiredPermission)) {
-    return NextResponse.redirect(new URL("/dashboard?denied=1", request.url));
+    return secureResponse(
+      NextResponse.redirect(new URL("/dashboard?denied=1", request.url)),
+      request,
+    );
   }
 
-  return NextResponse.next();
+  return secureResponse(NextResponse.next(), request);
+}
+
+function secureResponse(response: NextResponse, request: NextRequest) {
+  const token = request.cookies.get("neo_access_token")?.value;
+  if (token) {
+    response.cookies.set("neo_access_token", token, {
+      httpOnly: true,
+      secure: true,
+      sameSite: "strict",
+      path: "/",
+      maxAge: 60 * 60 * 24,
+    });
+  }
+  response.headers.set("x-frame-options", "DENY");
+  response.headers.set("x-content-type-options", "nosniff");
+  response.headers.set("referrer-policy", "strict-origin-when-cross-origin");
+  return response;
 }
 
 export const config = {

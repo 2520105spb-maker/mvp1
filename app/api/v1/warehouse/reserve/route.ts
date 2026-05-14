@@ -1,12 +1,12 @@
 import { NextRequest } from "next/server";
 import {
-  apiError,
+  domainError,
   isErrorResponse,
   json,
   readJson,
   requireSession,
 } from "@/lib/integration/api";
-import { reserveMaterial } from "@/lib/integration/operational-store";
+import { repositories } from "@/lib/integration/services";
 
 export async function POST(request: NextRequest) {
   const session = await requireSession(request, "warehouse:manage");
@@ -19,18 +19,15 @@ export async function POST(request: NextRequest) {
   }>(request);
   try {
     return json({
-      movement: reserveMaterial(
-        String(body.workOrderId),
-        String(body.materialId),
-        String(body.warehouseId ?? "wh_main"),
-        Number(body.quantity ?? 0),
-      ),
+      movement: await repositories.warehouse.reserve({
+        workOrderId: String(body.workOrderId),
+        materialId: String(body.materialId),
+        warehouseId: String(body.warehouseId ?? "wh_main"),
+        quantity: Number(body.quantity ?? 0),
+        actorUserId: session.userId,
+      }),
     });
   } catch (error) {
-    return apiError(
-      "STOCK_ERROR",
-      error instanceof Error ? error.message : "Ошибка резерва",
-      409,
-    );
+    return domainError(error);
   }
 }

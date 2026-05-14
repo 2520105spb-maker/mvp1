@@ -9,15 +9,15 @@ import {
   SessionRepository,
   SyncRepository,
   WarehouseRepository,
-  WorkOrderRepository,
 } from "./repositories";
+import { WorkOrderService } from "@/services/WorkOrderService";
 
 const persistence = getPersistence();
 
 export const repositories = {
   sessions: new SessionRepository(persistence),
   objects: new ObjectRepository(persistence),
-  workOrders: new WorkOrderRepository(persistence),
+  workOrders: new WorkOrderService(),
   warehouse: new WarehouseRepository(persistence),
   media: new MediaRepository(persistence),
   notifications: new NotificationRepository(persistence),

@@ -1,11 +1,7 @@
 "use client";
 
 import { ReactNode, useMemo } from "react";
-import {
-  QueryClient,
-  QueryClientProvider,
-  useQuery,
-} from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider, useQuery } from "@tanstack/react-query";
 import {
   ColumnDef,
   flexRender,
@@ -49,18 +45,9 @@ import {
   UPLOAD_QUEUE,
   buildMediaGridRows,
 } from "@/lib/media/media-operations-data";
-import type {
-  AiValidationStatus,
-  MediaGridRow,
-  UploadStatus,
-} from "@/lib/media/types";
+import type { AiValidationStatus, MediaGridRow, UploadStatus } from "@/lib/media/types";
 
-type MediaView =
-  | "operations"
-  | "capture"
-  | "documents"
-  | "galleries"
-  | "pipeline";
+type MediaView = "operations" | "capture" | "documents" | "galleries" | "pipeline";
 
 type MediaOpsState = {
   query: string;
@@ -145,10 +132,10 @@ function MediaOperationsCenterInner() {
               </div>
             </div>
             <p className="mt-3 max-w-5xl text-sm leading-6 text-slate-400">
-              Production media operations center for НеоЛифт: фотофиксация
-              работ, before/after evidence, документы объекта, PDF акты, offline
-              IndexedDB uploads, AI validation, OCR, S3 storage and realtime
-              upload recovery.
+              Production media operations center for НеоЛифт: фотофиксация работ,
+              before/after evidence, документы объекта, PDF акты, offline IndexedDB
+              queue, presigned R2 upload URLs, confirm-upload flow, AI validation, OCR,
+              S3-compatible storage and realtime upload recovery.
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -211,9 +198,7 @@ function MediaOperationsCenterInner() {
 
 function LeftMediaPanel() {
   const setView = useMediaOpsStore((state) => state.setView);
-  const failedUploads = UPLOAD_QUEUE.filter(
-    (item) => item.status === "failed",
-  ).length;
+  const failedUploads = UPLOAD_QUEUE.filter((item) => item.status === "failed").length;
   const pendingSync = UPLOAD_QUEUE.filter(
     (item) => item.status === "queued" || item.status === "uploading",
   ).length;
@@ -227,10 +212,7 @@ function LeftMediaPanel() {
 
   return (
     <aside className="space-y-4 border-b border-slate-800 bg-slate-950/45 p-4 xl:border-b-0">
-      <PanelBlock
-        title="Operations queue"
-        icon={<CloudUpload className="h-4 w-4" />}
-      >
+      <PanelBlock title="Operations queue" icon={<CloudUpload className="h-4 w-4" />}>
         <div className="grid grid-cols-2 gap-3">
           <Metric label="Failed uploads" value={failedUploads} danger />
           <Metric label="Pending sync" value={pendingSync} />
@@ -238,10 +220,7 @@ function LeftMediaPanel() {
           <Metric label="AI alerts" value={aiAlerts} danger />
         </div>
       </PanelBlock>
-      <PanelBlock
-        title="Recent uploads"
-        icon={<ImageIcon className="h-4 w-4" />}
-      >
+      <PanelBlock title="Recent uploads" icon={<ImageIcon className="h-4 w-4" />}>
         {MEDIA_FILES.slice(0, 4).map((file) => (
           <button
             key={file.id}
@@ -250,8 +229,7 @@ function LeftMediaPanel() {
           >
             <p className="font-semibold text-white">{file.title}</p>
             <p className="text-slate-500">
-              {file.workOrderId ?? file.elevatorFactoryNumber} ·{" "}
-              {file.uploadStatus}
+              {file.workOrderId ?? file.elevatorFactoryNumber} · {file.uploadStatus}
             </p>
           </button>
         ))}
@@ -331,9 +309,7 @@ function MediaGrid({ rows }: { rows: MediaGridRow[] }) {
       },
       {
         header: "AI status",
-        cell: ({ row }) => (
-          <AiStatusBadge status={row.original.media.aiStatus} />
-        ),
+        cell: ({ row }) => <AiStatusBadge status={row.original.media.aiStatus} />,
       },
       {
         header: "created_at",
@@ -362,10 +338,7 @@ function MediaGrid({ rows }: { rows: MediaGridRow[] }) {
                 <tr key={group.id}>
                   {group.headers.map((header) => (
                     <th key={header.id} className="px-4 py-3">
-                      {flexRender(
-                        header.column.columnDef.header,
-                        header.getContext(),
-                      )}
+                      {flexRender(header.column.columnDef.header, header.getContext())}
                     </th>
                   ))}
                 </tr>
@@ -376,10 +349,7 @@ function MediaGrid({ rows }: { rows: MediaGridRow[] }) {
                 <tr key={row.id} className="border-t border-slate-800">
                   {row.getVisibleCells().map((cell) => (
                     <td key={cell.id} className="px-4 py-3 text-slate-300">
-                      {flexRender(
-                        cell.column.columnDef.cell,
-                        cell.getContext(),
-                      )}
+                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
                     </td>
                   ))}
                 </tr>
@@ -451,8 +421,8 @@ function PhotoCaptureSystem() {
       <Card className="border-slate-800 bg-slate-950/70">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Smartphone className="h-5 w-5 text-cyan-300" /> Industrial mobile
-            photo capture
+            <Smartphone className="h-5 w-5 text-cyan-300" /> Industrial mobile photo
+            capture
           </CardTitle>
         </CardHeader>
         <CardContent className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
@@ -508,10 +478,7 @@ function PhotoCaptureSystem() {
             >
               <div className="flex items-center justify-between">
                 <p className="font-bold text-white">{item.mediaFileId}</p>
-                <UploadStatusBadge
-                  status={item.status}
-                  progress={item.progress}
-                />
+                <UploadStatusBadge status={item.status} progress={item.progress} />
               </div>
               <Progress value={item.progress} className="mt-3" />
               <p className="mt-2 text-xs text-slate-500">
@@ -529,10 +496,7 @@ function PhotoCaptureSystem() {
 function DocumentCenter() {
   return (
     <div className="grid gap-5 xl:grid-cols-2">
-      <PanelCard
-        title="Object documents"
-        icon={<FileText className="h-5 w-5" />}
-      >
+      <PanelCard title="Object documents" icon={<FileText className="h-5 w-5" />}>
         {DOCUMENTS.map((document) => (
           <div
             key={document.id}
@@ -551,10 +515,7 @@ function DocumentCenter() {
           </div>
         ))}
       </PanelCard>
-      <PanelCard
-        title="PDF generation pipeline"
-        icon={<Layers3 className="h-5 w-5" />}
-      >
+      <PanelCard title="PDF generation pipeline" icon={<Layers3 className="h-5 w-5" />}>
         {PDF_REPORTS.map((report) => (
           <div
             key={report.id}
@@ -606,8 +567,8 @@ function GallerySystem() {
               ))}
             </div>
             <p className="mt-3 text-sm text-slate-500">
-              Lazy-loaded thumbnails, progressive previews, AI tags and
-              permission-aware signed URLs.
+              Lazy-loaded thumbnails, progressive previews, AI tags and permission-aware
+              signed URLs.
             </p>
           </CardContent>
         </Card>
@@ -655,10 +616,7 @@ function MediaPipeline() {
           text="Supplier documents are parsed for materials and work-order reconciliation."
         />
       </PanelCard>
-      <PanelCard
-        title="Security & storage"
-        icon={<HardDrive className="h-5 w-5" />}
-      >
+      <PanelCard title="Security & storage" icon={<HardDrive className="h-5 w-5" />}>
         <WorkflowTile
           title="S3-compatible storage"
           text="Hot evidence bucket, warm document bucket, archive lifecycle and CDN thumbnails."
@@ -669,7 +627,7 @@ function MediaPipeline() {
         />
         <WorkflowTile
           title="Performance"
-          text="Virtualized grids, thumbnail cache, chunk uploads and progressive PDF loading."
+          text="Virtualized grids, thumbnail cache, presigned R2 upload handoff, confirm-upload tracking and progressive PDF loading."
         />
       </PanelCard>
     </div>
@@ -678,15 +636,10 @@ function MediaPipeline() {
 
 function RightMediaIntelligence() {
   const totalMb = MEDIA_FILES.reduce((sum, file) => sum + file.sizeMb, 0);
-  const synced = MEDIA_FILES.filter(
-    (file) => file.uploadStatus === "synced",
-  ).length;
+  const synced = MEDIA_FILES.filter((file) => file.uploadStatus === "synced").length;
   return (
     <aside className="space-y-4 border-t border-slate-800 bg-slate-950/55 p-4 2xl:border-l 2xl:border-t-0">
-      <PanelBlock
-        title="Upload statistics"
-        icon={<Gauge className="h-4 w-4" />}
-      >
+      <PanelBlock title="Upload statistics" icon={<Gauge className="h-4 w-4" />}>
         <div className="grid grid-cols-2 gap-3">
           <Metric label="Files" value={MEDIA_FILES.length} />
           <Metric label="Synced" value={synced} />
@@ -724,15 +677,13 @@ function RightMediaIntelligence() {
           </div>
           <Progress
             value={
-              (OFFLINE_MEDIA_CACHE.indexedDbUsedMb /
-                OFFLINE_MEDIA_CACHE.maxMb) *
-              100
+              (OFFLINE_MEDIA_CACHE.indexedDbUsedMb / OFFLINE_MEDIA_CACHE.maxMb) * 100
             }
             className="mt-3"
           />
           <p className="mt-2 text-xs text-slate-500">
-            {OFFLINE_MEDIA_CACHE.indexedDbUsedMb}/{OFFLINE_MEDIA_CACHE.maxMb} MB
-            · pending {OFFLINE_MEDIA_CACHE.pendingUploads}
+            {OFFLINE_MEDIA_CACHE.indexedDbUsedMb}/{OFFLINE_MEDIA_CACHE.maxMb} MB ·
+            pending {OFFLINE_MEDIA_CACHE.pendingUploads}
           </p>
         </div>
       </PanelBlock>
@@ -746,15 +697,11 @@ function RightMediaIntelligence() {
             className="mb-2 rounded-2xl border border-blue-400/20 bg-blue-500/10 p-3 text-sm"
           >
             <div className="flex items-center justify-between">
-              <p className="font-semibold text-blue-100">
-                {recommendation.title}
-              </p>
+              <p className="font-semibold text-blue-100">{recommendation.title}</p>
               <Badge>{recommendation.confidence}%</Badge>
             </div>
             <p className="mt-1 text-slate-400">{recommendation.description}</p>
-            <p className="mt-1 text-xs text-slate-500">
-              {recommendation.category}
-            </p>
+            <p className="mt-1 text-xs text-slate-500">{recommendation.category}</p>
           </div>
         ))}
       </PanelBlock>
@@ -822,9 +769,7 @@ function InfoGrid({ items }: { items: Array<[string, string]> }) {
           className="rounded-2xl border border-slate-800 bg-slate-900/60 p-3"
         >
           <p className="text-xs text-slate-500">{label}</p>
-          <p className="mt-1 break-all text-sm font-semibold text-white">
-            {value}
-          </p>
+          <p className="mt-1 break-all text-sm font-semibold text-white">{value}</p>
         </div>
       ))}
     </div>
@@ -844,9 +789,7 @@ function Metric({
     <div
       className={cn(
         "rounded-2xl border p-4",
-        danger
-          ? "border-red-400/30 bg-red-500/10"
-          : "border-slate-800 bg-slate-900/60",
+        danger ? "border-red-400/30 bg-red-500/10" : "border-slate-800 bg-slate-900/60",
       )}
     >
       <p className="text-xs text-slate-500">{label}</p>

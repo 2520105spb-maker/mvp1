@@ -1,15 +1,13 @@
 import { NextRequest } from "next/server";
 import {
   apiError,
+  domainError,
   isErrorResponse,
   json,
   readJson,
   requireSession,
 } from "@/lib/integration/api";
-import {
-  getOperationalState,
-  notify,
-} from "@/lib/integration/operational-store";
+import { repositories } from "@/lib/integration/services";
 
 export async function POST(
   request: NextRequest,
@@ -20,17 +18,15 @@ export async function POST(
   const body = await readJson<{ mechanicId: string }>(request);
   if (!body.mechanicId)
     return apiError("VALIDATION_FAILED", "Нужно указать механика", 422);
-  const incident = getOperationalState().emergency.find(
-    (item) => item.id === params.id,
-  );
-  if (!incident) return apiError("NOT_FOUND", "Инцидент не найден", 404);
-  incident.assignedMechanicId = body.mechanicId;
-  incident.status = "assigned";
-  notify({
-    userId: body.mechanicId,
-    type: "emergency",
-    title: "Аварийный выезд",
-    body: `Назначен инцидент ${incident.id}`,
-  });
-  return json({ incident });
+  try {
+    return json({
+      incident: await repositories.emergency.assign(
+        params.id,
+        body.mechanicId,
+        session.userId,
+      ),
+    });
+  } catch (error) {
+    return domainError(error);
+  }
 }

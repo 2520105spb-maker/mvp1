@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { DomainError, type Role, type Session } from "./domain";
 import { repositories } from "./services";
+import { validateCsrfToken } from "@/lib/security/csrf";
+import { logger } from "@/utils/logger";
 
 export type ApiResult<T> =
   | { ok: true; data: T }
@@ -25,12 +27,9 @@ export function apiError(
 export function domainError(error: unknown) {
   if (error instanceof DomainError)
     return apiError(error.code, error.message, error.status, error.details);
-  console.error(
-    JSON.stringify({
-      level: "error",
-      event: "api_unhandled_error",
-      message: error instanceof Error ? error.message : "Unknown error",
-    }),
+  logger.error(
+    { err: error, operationType: "api_unhandled_error" },
+    "Unhandled API error",
   );
   return apiError("VALIDATION_FAILED", "Операция не выполнена", 500);
 }
@@ -95,9 +94,10 @@ export async function requireSession(
   request: NextRequest,
   permission?: string,
 ): Promise<Session | NextResponse> {
+  if (!validateCsrfToken(request))
+    return apiError("CSRF_INVALID", "Некорректный CSRF token", 403);
   const session = await getSessionFromRequest(request);
-  if (!session)
-    return apiError("UNAUTHENTICATED", "Требуется вход в систему", 401);
+  if (!session) return apiError("UNAUTHENTICATED", "Требуется вход в систему", 401);
   if (permission && !hasPermission(session.role, permission))
     return apiError("FORBIDDEN", "Недостаточно прав", 403, { permission });
   return session;
@@ -108,8 +108,6 @@ export function hasPermission(role: Role, permission: string) {
   return allowed.includes("*") || allowed.includes(permission);
 }
 
-export function isErrorResponse(
-  value: Session | NextResponse,
-): value is NextResponse {
+export function isErrorResponse(value: Session | NextResponse): value is NextResponse {
   return value instanceof NextResponse;
 }
